@@ -137,7 +137,6 @@ module Handles = struct
     tbl.contents <- contents
 
   let add tbl k v = tbl.contents <- (k, v) :: tbl.contents
-  let clear tbl = tbl.contents <- []
   let create _ = { contents= [] }
 
   let append t k v =
@@ -158,16 +157,12 @@ end
 
 type elt = { time: int; syscall: Miou.syscall; mutable cancelled: bool }
 
-module Heapq = struct
-  include Miou.Pqueue.Make (struct
+module Heapq = Miou.Pqueue.Make (struct
     type t = elt
 
     let dummy = { time= 0; syscall= Obj.magic (); cancelled= false }
     let compare { time= a; _ } { time= b; _ } = Int.compare a b
   end)
-
-  let rec drop heapq = try delete_min_exn heapq; drop heapq with _ -> ()
-end
 
 type action = Rd of arguments | Wr of arguments
 
@@ -186,24 +181,14 @@ type domain = {
 }
 
 let domain =
-  let rec split_from_parent v =
-    Handles.clear v.handles;
-    Heapq.drop v.sleepers;
-    Queue.clear v.blocks;
-    make ()
-  and make () =
-    {
-      handles= Handles.create 0x100
-    ; sleepers= Heapq.create ()
-    ; blocks= Queue.create ()
-    }
-  in
-  let key = Stdlib.Domain.DLS.new_key ~split_from_parent make in
-  fun () -> Stdlib.Domain.DLS.get key
+  {
+    handles= Handles.create 0x100
+  ; sleepers= Heapq.create ()
+  ; blocks= Queue.create ()
+  }
 
 let blocking_read fd =
   let syscall = Miou.syscall () in
-  let domain = domain () in
   Log.debug (fun m -> m "append [%d] as a reader" fd);
   Handles.append domain.handles fd syscall;
   Miou.suspend syscall
@@ -297,7 +282,6 @@ module Block = struct
         t.pagesize;
     let syscall = Miou.syscall () in
     let args = { t; bstr; off; syscall; cancelled= false } in
-    let domain = domain () in
     Queue.push (Rd args) domain.blocks;
     Miou.suspend syscall
 
@@ -313,7 +297,6 @@ module Block = struct
         t.pagesize;
     let syscall = Miou.syscall () in
     let args = { t; bstr; off; syscall; cancelled= false } in
-    let domain = domain () in
     Queue.push (Wr args) domain.blocks;
     Miou.suspend syscall
 end
@@ -328,20 +311,20 @@ external clock_wall : unit -> (int[@untagged])
 
 let sleep until =
   let syscall = Miou.syscall () in
-  let domain = domain () in
   let elt = { time= clock_monotonic () + until; syscall; cancelled= false } in
   Heapq.insert elt domain.sleepers;
   Miou.suspend syscall
 
 (* poll part of Miou_solo5 *)
 
-let rec sleeper domain =
+let rec sleeper () =
   match Heapq.find_min_exn domain.sleepers with
   | exception Heapq.Empty -> None
   | { cancelled= true; _ } ->
       Heapq.delete_min_exn domain.sleepers;
-      sleeper domain
-  | { time; _ } -> Some time
+      sleeper ()
+  | { time; _ } ->
+      Some time
 
 let in_the_past t = t == 0 || t <= clock_monotonic ()
 
@@ -375,23 +358,24 @@ let rec consume_block domain signals =
   | Wr { t; bstr; off; syscall; _ } ->
       Block.unsafe_write t ~off bstr;
       Miou.signal syscall :: signals
+  | exception Queue.Empty -> signals
 
 let clean domain uids =
-  let to_keep syscall =
+  let to_delete syscall =
     let uid = Miou.uid syscall in
-    List.exists (fun uid' -> uid != uid') uids
+    List.exists (fun uid' -> uid == uid') uids
   in
   let fn0 (handle, syscalls) =
-    match List.filter to_keep syscalls with
+    match List.filter (Fun.negate to_delete) syscalls with
     | [] -> None
     | syscalls -> Some (handle, syscalls)
   in
   let fn1 (({ syscall; _ } : elt) as elt) =
-    if not (to_keep syscall) then elt.cancelled <- true
+    if to_delete syscall then elt.cancelled <- true
   in
   let fn2 = function
     | Rd ({ syscall; _ } as elt) | Wr ({ syscall; _ } as elt) ->
-        if not (to_keep syscall) then elt.cancelled <- true
+        if to_delete syscall then elt.cancelled <- true
   in
   Handles.filter_map fn0 domain.handles;
   Heapq.iter fn1 domain.sleepers;
@@ -403,8 +387,8 @@ external miou_solo5_yield : (int[@untagged]) -> (int[@untagged])
 
 type waiting = Infinity | Yield | Sleep
 
-let wait_for ~block domain =
-  match (sleeper domain, block) with
+let wait_for ~block =
+  match (sleeper (), block) with
   | None, true -> Infinity
   | (None | Some _), false -> Yield
   | Some point, true ->
@@ -432,11 +416,10 @@ let wait_for ~block domain =
    writing, on the other hand, is direct. *)
 
 let select ~block cancelled_syscalls =
-  let domain = domain () in
   clean domain cancelled_syscalls;
   let handles = ref 0 in
   let rec go signals =
-    match wait_for ~block domain with
+    match wait_for ~block with
     | Infinity ->
         (* Miou tells us we can wait forever ([block = true]) and we have no
            sleepers. So we're going to: take action on the block devices and ask

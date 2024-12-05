@@ -21,14 +21,14 @@
     Writing a packet to the net device is direct and failsafe. In other words,
     we don't need to wait for anything to happen before writing to the net
     device (if an error occurs on your host system, the Solo5 tender will fail
-    - and by extension, so will your unikernel). So, from the scheduler's point
-      of view, writing to the net device is atomic and is never suspended by the
-      scheduler in order to have the opportunity to execute other tasks.
+    \- and by extension, so will your unikernel). So, from the scheduler's point
+    of view, writing to the net device is atomic and is never suspended by the
+    scheduler in order to have the opportunity to execute other tasks.
 
     However, this is not the case when reading the net device. You might expect
     to read packages, but they might not be available at the time you try to
     read them. Miou_solo5 will make a first attempt at reading and if it fails,
-    the scheduler will ‘suspend’ the reading task (and everything that follows
+    the scheduler will "suspend" the reading task (and everything that follows
     from it) to observe at another point in the life of unikernel whether a
     packet has just arrived.
 
