@@ -1,0 +1,19 @@
+opam-version: "2.0"
+maintainer:   "romain.calascibetta@gmail.com"
+homepage:     "https://git.robur.coop/robur/miou-solo5"
+bug-reports:  "https://git.robur.coop/robur/miou-solo5/issues"
+dev-repo:     "git+https://git.robur.coop/robur/miou-solo5.git"
+doc:          "https://git.robur.coop/robur/miou-solo5"
+license:      "ISC"
+authors:      [ "Romain Calascibetta <romain.calascibetta@gmail.com>" ]
+tags:         [ "org:mirage" ]
+build:        [
+  [ "dune" "subst" ] {dev}
+  [ "dune" "build" "-p" name "-j" jobs ]
+  [ "dune" "runtest" "-p" name ] {with-test}
+]
+depends: [
+  "ocaml" {>= "5.2.1"}
+  "dune"  {>= "3.0"}
+  "miou"
+]

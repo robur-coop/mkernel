@@ -1,0 +1,14 @@
+(library
+ (name miou_solo5)
+ (public_name miou-solo5)
+ (wrapped false)
+ (libraries logs miou)
+ (foreign_stubs
+  (language c)
+  (names stubs)))
+
+(rule
+ (target stubs.c)
+ (deps stubs.solo5.c stubs.default.c)
+ (action
+  (copy stubs.%{context_name}.c %{target})))
