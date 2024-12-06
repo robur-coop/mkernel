@@ -37,8 +37,8 @@
     other tasks if reading failed in the first place. It is at the next
     iteration of the scheduler (after it has executed at least one other task)
     that [Miou_solo5] will ask the tender if a packet has just arrived. If this
-    is the case, the scheduler will resume the read task, otherwise it will
-    keep it in a suspended state until the next iteration.
+    is the case, the scheduler will resume the read task, otherwise it will keep
+    it in a suspended state until the next iteration.
 
     {2 Block devices.}
 
@@ -73,8 +73,8 @@
     later date without the current time at which the operation is carried out
     having any effect on the result. For example, scheduling reads on a block
     device that is read-only is probably more interesting than using atomic
-    reads (whether the read is done at time [T0] or [T1], the result remains
-    the same).
+    reads (whether the read is done at time [T0] or [T1], the result remains the
+    same).
 
     {2 The scheduler.}
 
@@ -83,20 +83,19 @@
     have more than a single core. Parallel tasks are therefore {b unavailable}
     \- in other words, the user should {b not} use [Miou.call] but only
     [Miou.async].
-    
+
     Finally, the scheduler works in such a way that scheduled read/write
     operations on a block device are relegated to the lowest priority tasks.
     However, this does not mean that [Miou_solo5] is a scheduler that tries to
-    complete as many tasks as possible before reaching an I/O operation (such
-    as waiting for a packet - {!val:Net.read} - or reading/writing a block
-    device). Miou and [Miou_solo5] aim to increase the availability of an
-    application: in other words, as soon as there is an opportunity to execute a
-    task other than the current one, Miou will take it.
+    complete as many tasks as possible before reaching an I/O operation (such as
+    waiting for a packet - {!val:Net.read} - or reading/writing a block device).
+    Miou and [Miou_solo5] aim to increase the availability of an application: in
+    other words, as soon as there is an opportunity to execute a task other than
+    the current one, Miou will take it.
 
-    In this case, all the operations (except atomic ones) present in this
-    module give Miou the opportunity to suspend the current task and execute
-    another task.
-*)
+    In this case, all the operations (except atomic ones) present in this module
+    give Miou the opportunity to suspend the current task and execute another
+    task. *)
 
 type bigstring =
   (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
@@ -108,33 +107,33 @@ module Net : sig
   type mac = private string
   (** The type of the hardware addres (MAC) of an ethernet interface. *)
 
-  type cfg = { mac : mac; mtu : int }
+  type cfg = { mac: mac; mtu: int }
 
   val read_bigstring : t -> ?off:int -> ?len:int -> bigstring -> int
   (** [read_bigstring t ?off ?len bstr] reads [len] (defaults to
       [Bigarray.Array1.dim bstr - off]) bytes from the net device [t], storing
-      them in byte sequence [bstr], starting at position [off] (defaults to
-      [0]) in [bstr]. Return the number of bytes actually read.
+      them in byte sequence [bstr], starting at position [off] (defaults to [0])
+      in [bstr]. Return the number of bytes actually read.
 
       [read_bigstring] attempts an initial read. If it fails, we give the
       scheduler the opportunity to execute another task. The current task will
       be resumed as soon as bytes are available in the given net-device [t].
 
-      @raise Invalid_argument if [off] and [len] do not designate a valid range
-      of [bstr]. *)
+      @raise Invalid_argument
+        if [off] and [len] do not designate a valid range of [bstr]. *)
 
   val read_bytes : t -> ?off:int -> ?len:int -> bytes -> int
   (** [read_bytes] is {!val:read_bigstring} but for [bytes]. However, this
       function uses an internal buffer (of a fixed size) which transmits the
       bytes from the net-device to the [byte] given by the user. If the [byte]
-      given by the user is larger than the internal buffer, several actual
-      reads are made.
+      given by the user is larger than the internal buffer, several actual reads
+      are made.
 
       This means that a single [read_bytes] can give the scheduler several
       opportunities to execute other tasks.
 
-      @raise Invalid_argument if [off] and [len] do not designate a valid range
-      of [bstr]. *)
+      @raise Invalid_argument
+        if [off] and [len] do not designate a valid range of [bstr]. *)
 
   val write_bigstring : t -> ?off:int -> ?len:int -> bigstring -> unit
   val write_string : t -> ?off:int -> ?len:int -> string -> unit
@@ -183,13 +182,16 @@ external clock_wall : unit -> (int[@untagged])
 val sleep : int -> unit
 (** [sleep ns] blocks (suspends) the current task for [ns] nanoseconds. *)
 
-type 'a device
-
-val net : string -> (Net.t * Net.cfg) device
-val block : string -> Block.t device
+type 'a arg
 
 type ('k, 'res) devices =
   | [] : (unit -> 'res, 'res) devices
-  | ( :: ) : 'a device * ('k, 'res) devices -> ('a -> 'k, 'res) devices
+  | ( :: ) : 'a arg * ('k, 'res) devices -> ('a -> 'k, 'res) devices
 
+val net : string -> (Net.t * Net.cfg) arg
+val block : string -> Block.t arg
+val opt : 'a arg -> 'a option arg
+val map : 'f -> ('f, 'a) devices -> 'a arg
+val dft : 'a -> 'a arg -> 'a arg
+val const : 'a -> 'a arg
 val run : ?g:Random.State.t -> ('a, 'b) devices -> 'a -> 'b

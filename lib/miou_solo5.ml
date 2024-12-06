@@ -44,12 +44,8 @@ let bigstring_blit_from_string src ~src_off dst ~dst_off ~len =
     bigstring_set_uint8 dst (dst_off + i) v
   done
 
-external miou_solo5_net_acquire :
-     string
-  -> bytes
-  -> bytes
-  -> bytes
-  -> int = "unimplemented" "miou_solo5_net_acquire"
+external miou_solo5_net_acquire : string -> bytes -> bytes -> bytes -> int
+  = "unimplemented" "miou_solo5_net_acquire"
 [@@noalloc]
 
 external miou_solo5_net_read :
@@ -69,12 +65,8 @@ external miou_solo5_net_write :
   -> (int[@untagged]) = "unimplemented" "miou_solo5_net_write"
 [@@noalloc]
 
-external miou_solo5_block_acquire :
-     string
-  -> bytes
-  -> bytes
-  -> bytes
-  -> int = "unimplemented" "miou_solo5_block_acquire"
+external miou_solo5_block_acquire : string -> bytes -> bytes -> bytes -> int
+  = "unimplemented" "miou_solo5_block_acquire"
 [@@noalloc]
 
 external miou_solo5_block_read :
@@ -114,7 +106,8 @@ module Block_direct = struct
         let _len = Int64.to_int (Bytes.get_int64_ne _len 0) in
         let pagesize = Int64.to_int (Bytes.get_int64_ne pagesize 0) in
         Ok { handle; pagesize }
-    | errno -> error_msgf "Impossible to connect the block-device %s (%d)" name errno
+    | errno ->
+        error_msgf "Impossible to connect the block-device %s (%d)" name errno
 
   let unsafe_read t ~off bstr =
     match miou_solo5_block_read t.handle off t.pagesize bstr with
@@ -190,11 +183,11 @@ end
 type elt = { time: int; syscall: Miou.syscall; mutable cancelled: bool }
 
 module Heapq = Miou.Pqueue.Make (struct
-    type t = elt
+  type t = elt
 
-    let dummy = { time= 0; syscall= Obj.magic (); cancelled= false }
-    let compare { time= a; _ } { time= b; _ } = Int.compare a b
-  end)
+  let dummy = { time= 0; syscall= Obj.magic (); cancelled= false }
+  let compare { time= a; _ } { time= b; _ } = Int.compare a b
+end)
 
 type action = Rd of arguments | Wr of arguments
 
@@ -228,7 +221,7 @@ let blocking_read fd =
 module Net = struct
   type t = int
   type mac = string
-  type cfg = { mac : mac; mtu : int }
+  type cfg = { mac: mac; mtu: int }
 
   let connect name =
     let handle = Bytes.make 8 '\000' in
@@ -277,11 +270,11 @@ module Net = struct
           let result = miou_solo5_net_read t bstr off len read_size in
           match result with
           | 0 ->
-            let len = Int64.to_int (unsafe_get_int64_ne read_size 0) in
-            bigstring_blit_to_bytes bstr ~src_off:0 buf ~dst_off ~len;
-            if len > 0 then go (dst_off + len) (dst_len - len) else dst_off - off
-          | 1 ->
-            blocking_read t; go dst_off dst_len
+              let len = Int64.to_int (unsafe_get_int64_ne read_size 0) in
+              bigstring_blit_to_bytes bstr ~src_off:0 buf ~dst_off ~len;
+              if len > 0 then go (dst_off + len) (dst_len - len)
+              else dst_off - off
+          | 1 -> blocking_read t; go dst_off dst_len
           | 2 -> invalid_arg "Miou_solo5.Net.read"
           | _ -> assert false (* UNSPEC *)
         end
@@ -384,8 +377,7 @@ let rec sleeper () =
   | { cancelled= true; _ } ->
       Heapq.delete_min_exn domain.sleepers;
       sleeper ()
-  | { time; _ } ->
-      Some time
+  | { time; _ } -> Some time
 
 let in_the_past t = t == 0 || t <= clock_monotonic ()
 
@@ -512,29 +504,59 @@ let select ~block cancelled_syscalls =
 
 let events _domain = { Miou.interrupt= ignore; select; finaliser= ignore }
 
-type 'a device =
-  | Net : string -> (Net.t * Net.cfg) device
-  | Block : string -> Block.t device
+type 'a arg =
+  | Net : string -> (Net.t * Net.cfg) arg
+  | Block : string -> Block.t arg
+  | Map : ('f, 'a) devices * 'f -> 'a arg
+  | Opt : 'a arg -> 'a option arg
+  | Dft : 'a * 'a arg -> 'a arg
+  | Const : 'a -> 'a arg
+
+and ('k, 'res) devices =
+  | [] : (unit -> 'res, 'res) devices
+  | ( :: ) : 'a arg * ('k, 'res) devices -> ('a -> 'k, 'res) devices
 
 let net name = Net name
 let block name = Block name
+let opt value = Opt value
+let map fn args = Map (args, fn)
+let dft v arg = Dft (v, arg)
+let const v = Const v
 
-type ('k, 'res) devices =
-  | [] : (unit -> 'res, 'res) devices
-  | ( :: ) : 'a device * ('k, 'res) devices -> ('a -> 'k, 'res) devices
+let rec ctor : type a. a arg -> a = function
+  | Net device -> begin
+      match Net.connect device with
+      | Ok (t, cfg) -> (t, cfg)
+      | Error (`Msg msg) -> failwithf "%s." msg
+    end
+  | Block device -> begin
+      match Block.connect device with
+      | Ok t -> t
+      | Error (`Msg msg) -> failwithf "%s." msg
+    end
+  | Opt arg -> begin
+      match go (fun fn -> fn ()) [ arg ] (fun v () -> Some v) with
+      | v -> v
+      | exception _ -> None
+    end
+  | Const v -> v
+  | Dft (v, arg) -> begin
+      match go (fun fn -> fn ()) [ arg ] (fun v () -> v) with
+      | v' -> v'
+      | exception _ -> v
+    end
+  | Map (args, fn) -> go (fun fn -> fn ()) args fn
 
-let rec go : type k res. ((unit -> res) -> res) -> (k, res) devices -> k -> res
-  = fun run -> function
+and go : type k res. ((unit -> res) -> res) -> (k, res) devices -> k -> res =
+ fun run -> function
   | [] -> fun fn -> run fn
-  | Net device :: devices ->
-    begin match Net.connect device with
-    | Ok (t, cfg) -> fun f -> let r = f (t, cfg) in go run devices r
-    | Error (`Msg msg) -> failwithf "%s." msg end
-  | Block device :: devices ->
-    begin match Block.connect device with
-    | Ok t -> fun f -> let r = f t in go run devices r
-    | Error (`Msg msg) -> failwithf "%s." msg end
+  | arg :: devices ->
+      let v = ctor arg in
+      fun f ->
+        let r = f v in
+        go run devices r
 
 let run ?g devices fn =
-  let run fn = Miou.run ~events ~domains:0 ?g fn in
+  Miou.run ~events ~domains:0 ?g @@ fun () ->
+  let run fn = fn () in
   go run devices fn
