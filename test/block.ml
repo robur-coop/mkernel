@@ -17,7 +17,7 @@ let () = Miou_solo5.(run [ block "simple" ]) @@ fun blk () ->
     let hash = Digest.string str in
     Fmt.pr "%08x: %s\n%!" 0 (Digest.to_hex hash)
   in
-  Miou_solo5.Block.atomic_read blk ~off:pagesize bstr;
+  Miou_solo5.Block.read blk ~off:pagesize bstr;
   let str = bigstring_to_string bstr in
   let hash = Digest.string str in
   Fmt.pr "%08x: %s\n%!" pagesize (Digest.to_hex hash);

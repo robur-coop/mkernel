@@ -42,6 +42,6 @@ Tests some simple unikernels
   Solo5:     rodata @ (0x1c6000 - 0x1f7fff)
   Solo5:       data @ (0x1f8000 - 0x267fff)
   Solo5:       heap >= 0x268000 < stack < 0x20000000
-  00000200: 5e00b6c8f387deac083b9718e08a361b
   00000000: 94a3b2375dd8aa75e3d2cdef54179909
+  00000200: 5e00b6c8f387deac083b9718e08a361b
   Solo5: solo5_exit(0) called

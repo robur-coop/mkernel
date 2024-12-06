@@ -505,7 +505,8 @@ let select ~block cancelled_syscalls =
         handles := miou_solo5_yield 0;
         if !handles == 0 then go signals else signals
   in
-  let signals = go [] in
+  let signals = consume_block domain [] in
+  let signals = go signals in
   let signals = collect_handles ~handles:!handles domain signals in
   collect_sleepers domain signals
 
