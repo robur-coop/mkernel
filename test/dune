@@ -16,6 +16,15 @@
  (libraries miou-solo5)
  (foreign_stubs (language c) (names manifest.schedule)))
 
+(executable
+ (name block)
+ (modules block)
+ (modes native)
+ (link_flags :standard -cclib "-z solo5-abi=hvt")
+ (enabled_if (= %{context_name} "solo5"))
+ (libraries miou-solo5 fmt hxd.core hxd.string)
+ (foreign_stubs (language c) (names manifest.block)))
+
 (rule
  (targets manifest.sleep.c)
  (deps none.json)
@@ -26,6 +35,11 @@
  (deps none.json)
  (action (run solo5-elftool gen-manifest none.json manifest.schedule.c)))
 
+(rule
+ (targets manifest.block.c)
+ (deps block.json)
+ (action (run solo5-elftool gen-manifest block.json manifest.block.c)))
+
 (cram
  (enabled_if (= %{context_name} "solo5"))
- (deps sleep.exe schedule.exe))
+ (deps sleep.exe schedule.exe block.exe simple.txt))

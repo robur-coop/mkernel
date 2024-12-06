@@ -49,7 +49,7 @@ external miou_solo5_net_acquire :
   -> bytes
   -> bytes
   -> bytes
-  -> (int[@untagged]) = "unimplemented" "miou_solo5_net_acquire"
+  -> int = "unimplemented" "miou_solo5_net_acquire"
 [@@noalloc]
 
 external miou_solo5_net_read :
@@ -58,7 +58,7 @@ external miou_solo5_net_read :
   -> (int[@untagged])
   -> (int[@untagged])
   -> bytes
-  -> (int[@untagged]) = "unimplemented" "miou_solo5_net_read"
+  -> int = "unimplemented" "miou_solo5_net_read"
 [@@noalloc]
 
 external miou_solo5_net_write :
@@ -74,7 +74,7 @@ external miou_solo5_block_acquire :
   -> bytes
   -> bytes
   -> bytes
-  -> (int[@untagged]) = "unimplemented" "miou_solo5_block_acquire"
+  -> int = "unimplemented" "miou_solo5_block_acquire"
 [@@noalloc]
 
 external miou_solo5_block_read :
@@ -102,6 +102,8 @@ let error_msgf fmt = Format.kasprintf (fun msg -> Error (`Msg msg)) fmt
 module Block_direct = struct
   type t = { handle: int; pagesize: int }
 
+  let pagesize { pagesize; _ } = pagesize
+
   let connect name =
     let handle = Bytes.make 8 '\000' in
     let _len = Bytes.make 8 '\000' in
@@ -112,7 +114,7 @@ module Block_direct = struct
         let _len = Int64.to_int (Bytes.get_int64_ne _len 0) in
         let pagesize = Int64.to_int (Bytes.get_int64_ne pagesize 0) in
         Ok { handle; pagesize }
-    | _ -> error_msgf "Impossible to connect the block-device %s" name
+    | errno -> error_msgf "Impossible to connect the block-device %s (%d)" name errno
 
   let unsafe_read t ~off bstr =
     match miou_solo5_block_read t.handle off t.pagesize bstr with

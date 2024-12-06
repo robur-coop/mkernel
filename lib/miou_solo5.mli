@@ -144,6 +144,7 @@ end
 module Block : sig
   type t
 
+  val pagesize : t -> int
   val atomic_read : t -> off:int -> bigstring -> unit
   val atomic_write : t -> off:int -> bigstring -> unit
   val read : t -> off:int -> bigstring -> unit

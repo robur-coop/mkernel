@@ -22,7 +22,7 @@ extern void caml_leave_blocking_section(void);
  * solo5_handle_set_t, which can only contain file-descriptors with a value
  * between 0 and 63. */
 
-intnat miou_solo5_block_acquire(value vname, value vhandle, value vlen, value vpage) {
+value miou_solo5_block_acquire(value vname, value vhandle, value vlen, value vpage) {
   CAMLparam4(vname, vhandle, vlen, vpage);
   solo5_result_t result;
   solo5_handle_t handle;
@@ -59,7 +59,7 @@ intnat miou_solo5_block_write(intnat fd, intnat off, intnat len, value vbstr) {
   return result;
 }
 
-intnat miou_solo5_net_acquire(value vname, value vhandle, value vmac, value vmtu) {
+value miou_solo5_net_acquire(value vname, value vhandle, value vmac, value vmtu) {
   CAMLparam3(vname, vmac, vmtu);
   solo5_result_t result;
   solo5_handle_t handle;
@@ -82,7 +82,7 @@ intnat miou_solo5_net_acquire(value vname, value vhandle, value vmac, value vmtu
  * small buffer and, on the OCaml side, we just need to read it. It's a bit
  * like the poor man's C-style reference passage in OCaml. */
 
-intnat miou_solo5_net_read(intnat fd, intnat off, intnat len, value vread_size,
+value miou_solo5_net_read(intnat fd, intnat off, intnat len, value vread_size,
                            value vbstr) {
   CAMLparam1(vread_size);
   solo5_handle_t handle = fd;
