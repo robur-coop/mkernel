@@ -22,6 +22,23 @@ extern void caml_leave_blocking_section(void);
  * solo5_handle_set_t, which can only contain file-descriptors with a value
  * between 0 and 63. */
 
+intnat miou_solo5_block_acquire(value vname, value vhandle, value vlen, value vpage) {
+  CAMLparam4(vname, vhandle, vlen, vpage);
+  solo5_result_t result;
+  solo5_handle_t handle;
+  struct solo5_block_info bi;
+
+  result = solo5_block_acquire(String_val(vname), &handle, &bi);
+
+  if (result == SOLO5_R_OK) {
+    memcpy(Bytes_val(vhandle), (uint64_t *) &handle, sizeof(uint64_t));
+    memcpy(Bytes_val(vlen), (uint64_t *) &bi.capacity, sizeof(uint64_t));
+    memcpy(Bytes_val(vpage), (uint64_t *) &bi.block_size, sizeof(uint64_t));
+  }
+
+  CAMLreturn(Val_long(result));
+}
+
 intnat miou_solo5_block_read(intnat fd, intnat off, intnat len, value vbstr) {
   solo5_handle_t handle = fd;
   solo5_off_t offset = off;
@@ -40,6 +57,23 @@ intnat miou_solo5_block_write(intnat fd, intnat off, intnat len, value vbstr) {
   const uint8_t *buf = (uint8_t *)Caml_ba_data_val(vbstr);
   result = solo5_block_write(handle, offset, buf, size);
   return result;
+}
+
+intnat miou_solo5_net_acquire(value vname, value vhandle, value vmac, value vmtu) {
+  CAMLparam3(vname, vmac, vmtu);
+  solo5_result_t result;
+  solo5_handle_t handle;
+  struct solo5_net_info ni;
+
+  result = solo5_net_acquire(String_val(vname), &handle, &ni);
+
+  if (result == SOLO5_R_OK) {
+    memcpy(Bytes_val(vhandle), (uint64_t *) &handle, sizeof(uint64_t));
+    memcpy(Bytes_val(vmac), ni.mac_address, SOLO5_NET_ALEN);
+    memcpy(Bytes_val(vmtu), (uint64_t *) &ni.mtu, sizeof(uint64_t));
+  }
+
+  CAMLreturn(Val_long(result));
 }
 
 /* Instead of passing the [read_size] result in data that would be allocated on

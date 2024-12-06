@@ -5,9 +5,27 @@
  (link_flags :standard -cclib "-z solo5-abi=hvt")
  (enabled_if (= %{context_name} "solo5"))
  (libraries miou-solo5)
- (foreign_stubs (language c) (names manifest)))
+ (foreign_stubs (language c) (names manifest.sleep)))
+
+(executable
+ (name schedule)
+ (modules schedule)
+ (modes native)
+ (link_flags :standard -cclib "-z solo5-abi=hvt")
+ (enabled_if (= %{context_name} "solo5"))
+ (libraries miou-solo5)
+ (foreign_stubs (language c) (names manifest.schedule)))
 
 (rule
- (targets manifest.c)
- (deps manifest.json)
- (action (run solo5-elftool gen-manifest manifest.json manifest.c)))
+ (targets manifest.sleep.c)
+ (deps none.json)
+ (action (run solo5-elftool gen-manifest none.json manifest.sleep.c)))
+
+(rule
+ (targets manifest.schedule.c)
+ (deps none.json)
+ (action (run solo5-elftool gen-manifest none.json manifest.schedule.c)))
+
+(cram
+ (enabled_if (= %{context_name} "solo5"))
+ (deps sleep.exe schedule.exe))

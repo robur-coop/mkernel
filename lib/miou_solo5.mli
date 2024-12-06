@@ -27,18 +27,18 @@
 
     However, this is not the case when reading the net device. You might expect
     to read packages, but they might not be available at the time you try to
-    read them. Miou_solo5 will make a first attempt at reading and if it fails,
-    the scheduler will "suspend" the reading task (and everything that follows
-    from it) to observe at another point in the life of unikernel whether a
-    packet has just arrived.
+    read them. [Miou_solo5] will make a first attempt at reading and if it
+    fails, the scheduler will "suspend" the reading task (and everything that
+    follows from it) to observe at another point in the life of unikernel
+    whether a packet has just arrived.
 
     Reading the net device is currently the only operation where suspension is
     necessary. In this way, the scheduler can take the opportunity to perform
     other tasks if reading failed in the first place. It is at the next
     iteration of the scheduler (after it has executed at least one other task)
-    that Miou_solo5 will ask the tender if a packet has just arrived. If this is
-    the case, the scheduler will resume the read task, otherwise it will keep it
-    in a suspended state until the next iteration.
+    that [Miou_solo5] will ask the tender if a packet has just arrived. If this
+    is the case, the scheduler will resume the read task, otherwise it will
+    keep it in a suspended state until the next iteration.
 
     {2 Block devices.}
 
@@ -73,19 +73,72 @@
     later date without the current time at which the operation is carried out
     having any effect on the result. For example, scheduling reads on a block
     device that is read-only is probably more interesting than using atomic
-    reads (whether the read is done at time T0 or T1, the result remains the
-    same). *)
+    reads (whether the read is done at time [T0] or [T1], the result remains
+    the same).
+
+    {2 The scheduler.}
+
+    [Miou_solo5] is based on the Miou scheduler. Basically, this scheduler
+    allows the user to perform tasks in parallel. However, Solo5 does {b not}
+    have more than a single core. Parallel tasks are therefore {b unavailable}
+    \- in other words, the user should {b not} use [Miou.call] but only
+    [Miou.async].
+    
+    Finally, the scheduler works in such a way that scheduled read/write
+    operations on a block device are relegated to the lowest priority tasks.
+    However, this does not mean that [Miou_solo5] is a scheduler that tries to
+    complete as many tasks as possible before reaching an I/O operation (such
+    as waiting for a packet - {!val:Net.read} - or reading/writing a block
+    device). Miou and [Miou_solo5] aim to increase the availability of an
+    application: in other words, as soon as there is an opportunity to execute a
+    task other than the current one, Miou will take it.
+
+    In this case, all the operations (except atomic ones) present in this
+    module give Miou the opportunity to suspend the current task and execute
+    another task.
+*)
 
 type bigstring =
   (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
 
 module Net : sig
   type t
+  (** The type of network interfaces. *)
+
+  type mac = private string
+  (** The type of the hardware addres (MAC) of an ethernet interface. *)
+
+  type cfg = { mac : mac; mtu : int }
 
   val read_bigstring : t -> ?off:int -> ?len:int -> bigstring -> int
+  (** [read_bigstring t ?off ?len bstr] reads [len] (defaults to
+      [Bigarray.Array1.dim bstr - off]) bytes from the net device [t], storing
+      them in byte sequence [bstr], starting at position [off] (defaults to
+      [0]) in [bstr]. Return the number of bytes actually read.
+
+      [read_bigstring] attempts an initial read. If it fails, we give the
+      scheduler the opportunity to execute another task. The current task will
+      be resumed as soon as bytes are available in the given net-device [t].
+
+      @raise Invalid_argument if [off] and [len] do not designate a valid range
+      of [bstr]. *)
+
   val read_bytes : t -> ?off:int -> ?len:int -> bytes -> int
+  (** [read_bytes] is {!val:read_bigstring} but for [bytes]. However, this
+      function uses an internal buffer (of a fixed size) which transmits the
+      bytes from the net-device to the [byte] given by the user. If the [byte]
+      given by the user is larger than the internal buffer, several actual
+      reads are made.
+
+      This means that a single [read_bytes] can give the scheduler several
+      opportunities to execute other tasks.
+
+      @raise Invalid_argument if [off] and [len] do not designate a valid range
+      of [bstr]. *)
+
   val write_bigstring : t -> ?off:int -> ?len:int -> bigstring -> unit
   val write_string : t -> ?off:int -> ?len:int -> string -> unit
+  val connect : string -> (t * cfg, [> `Msg of string ]) result
 end
 
 module Block : sig
@@ -95,15 +148,47 @@ module Block : sig
   val atomic_write : t -> off:int -> bigstring -> unit
   val read : t -> off:int -> bigstring -> unit
   val write : t -> off:int -> bigstring -> unit
+  val connect : string -> (t, [> `Msg of string ]) result
 end
 
 external clock_monotonic : unit -> (int[@untagged])
   = "unimplemented" "miou_solo5_clock_monotonic"
 [@@noalloc]
+(** [clock_monotonic ()] returns monotonic time since an unspecified period in
+    the past.
+
+    The monotonic clock corresponds to the CPU time spent since the boot time.
+    The monotonic clock cannot be relied upon to provide accurate results -
+    unless great care is taken to correct the possible flaws. Indeed, if the
+    unikernel is suspended (by the host system), the monotonic clock will no
+    longer be aligned with the "real time elapsed" since the boot.
+
+    This operation is {b atomic}. In other words, it does not give the scheduler
+    the opportunity to execute another task. *)
 
 external clock_wall : unit -> (int[@untagged])
   = "unimplemented" "miou_solo5_clock_wall"
 [@@noalloc]
+(** [clock_wall ()] returns wall clock in UTC since the UNIX epoch (1970-01-01).
+
+    The wall clock corresponds to the host's clock. Indeed, each time
+    [clock_wall ()] is called, a syscall/hypercall is made to get the host's
+    clock. Compared to the monotonic clock, getting the host's clock may take
+    some time.
+
+    This operation is atomic. In other words, it does not give the scheduler the
+    opportunity to execute another task. *)
 
 val sleep : int -> unit
-val run : ?g:Random.State.t -> (unit -> 'a) -> 'a
+(** [sleep ns] blocks (suspends) the current task for [ns] nanoseconds. *)
+
+type 'a device
+
+val net : string -> (Net.t * Net.cfg) device
+val block : string -> Block.t device
+
+type ('k, 'res) devices =
+  | [] : (unit -> 'res, 'res) devices
+  | ( :: ) : 'a device * ('k, 'res) devices -> ('a -> 'k, 'res) devices
+
+val run : ?g:Random.State.t -> ('a, 'b) devices -> 'a -> 'b

@@ -44,13 +44,21 @@ let bigstring_blit_from_string src ~src_off dst ~dst_off ~len =
     bigstring_set_uint8 dst (dst_off + i) v
   done
 
+external miou_solo5_net_acquire :
+     string
+  -> bytes
+  -> bytes
+  -> bytes
+  -> (int[@untagged]) = "unimplemented" "miou_solo5_net_acquire"
+[@@noalloc]
+
 external miou_solo5_net_read :
      (int[@untagged])
   -> bigstring
   -> (int[@untagged])
   -> (int[@untagged])
   -> bytes
-  -> int = "unimplemented" "miou_solo5_net_read"
+  -> (int[@untagged]) = "unimplemented" "miou_solo5_net_read"
 [@@noalloc]
 
 external miou_solo5_net_write :
@@ -59,6 +67,14 @@ external miou_solo5_net_write :
   -> (int[@untagged])
   -> bigstring
   -> (int[@untagged]) = "unimplemented" "miou_solo5_net_write"
+[@@noalloc]
+
+external miou_solo5_block_acquire :
+     string
+  -> bytes
+  -> bytes
+  -> bytes
+  -> (int[@untagged]) = "unimplemented" "miou_solo5_block_acquire"
 [@@noalloc]
 
 external miou_solo5_block_read :
@@ -80,9 +96,23 @@ external miou_solo5_block_write :
 external unsafe_get_int64_ne : bytes -> int -> int64 = "%caml_bytes_get64u"
 
 let invalid_argf fmt = Format.kasprintf invalid_arg fmt
+let failwithf fmt = Format.kasprintf failwith fmt
+let error_msgf fmt = Format.kasprintf (fun msg -> Error (`Msg msg)) fmt
 
 module Block_direct = struct
   type t = { handle: int; pagesize: int }
+
+  let connect name =
+    let handle = Bytes.make 8 '\000' in
+    let _len = Bytes.make 8 '\000' in
+    let pagesize = Bytes.make 8 '\000' in
+    match miou_solo5_block_acquire name handle _len pagesize with
+    | 0 ->
+        let handle = Int64.to_int (Bytes.get_int64_ne handle 0) in
+        let _len = Int64.to_int (Bytes.get_int64_ne _len 0) in
+        let pagesize = Int64.to_int (Bytes.get_int64_ne pagesize 0) in
+        Ok { handle; pagesize }
+    | _ -> error_msgf "Impossible to connect the block-device %s" name
 
   let unsafe_read t ~off bstr =
     match miou_solo5_block_read t.handle off t.pagesize bstr with
@@ -195,16 +225,31 @@ let blocking_read fd =
 
 module Net = struct
   type t = int
+  type mac = string
+  type cfg = { mac : mac; mtu : int }
 
-  let rec read t ~off ~len bstr =
-    let read_size = Bytes.make 8 '\000' in
-    let result = miou_solo5_net_read t bstr off len read_size in
-    let read_size = Int64.to_int (unsafe_get_int64_ne read_size 0) in
-    match result with
-    | 0 -> read_size
-    | 1 -> blocking_read t; read t ~off ~len bstr
-    | 2 -> invalid_arg "Miou_solo5.Net.read"
-    | _ -> assert false (* UNSPEC *)
+  let connect name =
+    let handle = Bytes.make 8 '\000' in
+    let mac = Bytes.make 6 '\000' in
+    let mtu = Bytes.make 8 '\000' in
+    match miou_solo5_net_acquire name handle mac mtu with
+    | 0 ->
+        let handle = Int64.to_int (Bytes.get_int64_ne handle 0) in
+        let mac = Bytes.unsafe_to_string mac in
+        let mtu = Int64.to_int (Bytes.get_int64_ne mtu 0) in
+        Ok (handle, { mac; mtu })
+    | _ -> error_msgf "Impossible to connect the net-device %s" name
+
+  let read t ~off ~len bstr =
+    let rec go read_size =
+      let result = miou_solo5_net_read t bstr off len read_size in
+      match result with
+      | 0 -> Int64.to_int (unsafe_get_int64_ne read_size 0)
+      | 1 -> blocking_read t; go read_size
+      | 2 -> invalid_arg "Miou_solo5.Net.read"
+      | _ -> assert false (* UNSPEC *)
+    in
+    go (Bytes.make 8 '\000')
 
   let read_bigstring t ?(off = 0) ?len bstr =
     let len =
@@ -215,14 +260,28 @@ module Net = struct
     read t ~off ~len bstr
 
   let read_bytes =
+    (* NOTE(dinosaure): Using [bstr] as a global is safe for 2 reasons. We
+       don't have several domains with Solo5, so there can't be a data-race on
+       this value. Secondly, we ensure that as soon as Solo5 writes to it, we
+       save the bytes in the buffer given by the user without giving the
+       scheduler a chance to execute another task (such as another
+       [read_bytes]). *)
     let bstr = Bigarray.(Array1.create char c_layout 0x7ff) in
     fun t ?(off = 0) ?len buf ->
+      let read_size = Bytes.make 8 '\000' in
       let rec go dst_off dst_len =
         if dst_len > 0 then begin
           let len = Int.min (Bigarray.Array1.dim bstr) dst_len in
-          let len = read_bigstring t ~off:0 ~len bstr in
-          bigstring_blit_to_bytes bstr ~src_off:0 buf ~dst_off ~len;
-          if len > 0 then go (dst_off + len) (dst_len - len) else dst_off - off
+          let result = miou_solo5_net_read t bstr off len read_size in
+          match result with
+          | 0 ->
+            let len = Int64.to_int (unsafe_get_int64_ne read_size 0) in
+            bigstring_blit_to_bytes bstr ~src_off:0 buf ~dst_off ~len;
+            if len > 0 then go (dst_off + len) (dst_len - len) else dst_off - off
+          | 1 ->
+            blocking_read t; go dst_off dst_len
+          | 2 -> invalid_arg "Miou_solo5.Net.read"
+          | _ -> assert false (* UNSPEC *)
         end
         else dst_off - off
       in
@@ -449,4 +508,30 @@ let select ~block cancelled_syscalls =
   collect_sleepers domain signals
 
 let events _domain = { Miou.interrupt= ignore; select; finaliser= ignore }
-let run ?g fn = Miou.run ~events ?g ~domains:0 fn
+
+type 'a device =
+  | Net : string -> (Net.t * Net.cfg) device
+  | Block : string -> Block.t device
+
+let net name = Net name
+let block name = Block name
+
+type ('k, 'res) devices =
+  | [] : (unit -> 'res, 'res) devices
+  | ( :: ) : 'a device * ('k, 'res) devices -> ('a -> 'k, 'res) devices
+
+let rec go : type k res. ((unit -> res) -> res) -> (k, res) devices -> k -> res
+  = fun run -> function
+  | [] -> fun fn -> run fn
+  | Net device :: devices ->
+    begin match Net.connect device with
+    | Ok (t, cfg) -> fun f -> let r = f (t, cfg) in go run devices r
+    | Error (`Msg msg) -> failwithf "%s." msg end
+  | Block device :: devices ->
+    begin match Block.connect device with
+    | Ok t -> fun f -> let r = f t in go run devices r
+    | Error (`Msg msg) -> failwithf "%s." msg end
+
+let run ?g devices fn =
+  let run fn = Miou.run ~events ~domains:0 ?g fn in
+  go run devices fn
