@@ -1,27 +1,47 @@
-external unsafe_get_char : Miou_solo5.bigstring -> int -> char
-  = "%caml_ba_ref_1"
-
-let bigstring_to_string v =
-  let len = Bigarray.Array1.dim v in
-  let res = Bytes.create len in
-  for i = 0 to len - 1 do
-    Bytes.set res i (unsafe_get_char v i)
-  done;
-  Bytes.unsafe_to_string res
-
-let () =
-  Miou_solo5.(run [ block "simple" ]) @@ fun blk () ->
+let cachet_of_block ~cachesize blk () =
+  let map blk ~pos len =
+    let bstr = Bigarray.(Array1.create char c_layout len) in
+    Miou_solo5.Block.read blk ~off:pos bstr; bstr in
   let pagesize = Miou_solo5.Block.pagesize blk in
-  let bstr = Bigarray.(Array1.create char c_layout pagesize) in
+  Cachet.make ~cachesize ~pagesize ~map blk
+
+let cachet ~cachesize name =
+  let open Miou_solo5 in
+  map (cachet_of_block ~cachesize) [ block name ]
+
+let run cachesize =
+  Miou_solo5.(run [ cachet ~cachesize "simple" ]) @@ fun blk () ->
+  let pagesize = Cachet.pagesize blk in
   let prm =
     Miou.async @@ fun () ->
+    let bstr = Bigarray.(Array1.create char c_layout pagesize) in
+    let blk = Cachet.fd blk in
     Miou_solo5.Block.atomic_read blk ~off:0 bstr;
-    let str = bigstring_to_string bstr in
+    let bstr = Cachet.Bstr.of_bigstring bstr in
+    let str = Cachet.Bstr.to_string bstr in
     let hash = Digest.string str in
     Fmt.pr "%08x: %s\n%!" 0 (Digest.to_hex hash)
   in
-  Miou_solo5.Block.read blk ~off:pagesize bstr;
-  let str = bigstring_to_string bstr in
+  let str = Cachet.get_string blk pagesize ~len:pagesize in
   let hash = Digest.string str in
   Fmt.pr "%08x: %s\n%!" pagesize (Digest.to_hex hash);
   Miou.await_exn prm
+
+open Cmdliner
+
+let cachesize =
+  let doc = "The size of the cache (must be a power of two)." in
+  let open Arg in
+  value & opt int 0x100 & info [ "cachesize" ] ~doc ~docv:"NUMBER"
+
+let term =
+  let open Term in
+  const run $ cachesize
+
+let cmd =
+  let doc = "A simple unikernel to read a block device." in
+  let man = [] in
+  let info = Cmd.info "blk" ~doc ~man in
+  Cmd.v info term
+
+let () = Cmd.(exit @@ eval cmd)

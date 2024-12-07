@@ -1,11 +1,18 @@
 (library
  (name miou_solo5)
  (public_name miou-solo5)
+ (modules miou_solo5)
+ (libraries jsonm logs miou)
  (wrapped false)
- (libraries logs miou)
  (foreign_stubs
   (language c)
   (names stubs)))
+
+(rule
+ (target miou_solo5.ml)
+ (deps miou_solo5.solo5.ml miou_solo5.default.ml)
+ (action
+  (copy miou_solo5.%{context_name}.ml %{target})))
 
 (rule
  (target stubs.c)

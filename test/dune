@@ -3,8 +3,6 @@
  (modules sleep)
  (modes native)
  (link_flags :standard -cclib "-z solo5-abi=hvt")
- (enabled_if
-  (= %{context_name} "solo5"))
  (libraries miou-solo5)
  (foreign_stubs
   (language c)
@@ -15,8 +13,6 @@
  (modules schedule)
  (modes native)
  (link_flags :standard -cclib "-z solo5-abi=hvt")
- (enabled_if
-  (= %{context_name} "solo5"))
  (libraries miou-solo5)
  (foreign_stubs
   (language c)
@@ -27,30 +23,82 @@
  (modules block)
  (modes native)
  (link_flags :standard -cclib "-z solo5-abi=hvt")
- (enabled_if
-  (= %{context_name} "solo5"))
- (libraries miou-solo5 fmt hxd.core hxd.string)
+ (libraries miou-solo5 cmdliner fmt cachet hxd.core hxd.string)
  (foreign_stubs
   (language c)
   (names manifest.block)))
 
 (rule
  (targets manifest.sleep.c)
- (deps none.json)
+ (deps sleep.json)
+ (enabled_if
+  (= %{context_name} "solo5"))
  (action
-  (run solo5-elftool gen-manifest none.json manifest.sleep.c)))
+  (run solo5-elftool gen-manifest sleep.json manifest.sleep.c)))
+
+(rule
+ (targets sleep.json)
+ (enabled_if
+  (= %{context_name} "solo5"))
+ (action
+  (with-stdout-to
+   sleep.json
+   (run %{exe:sleep.exe}))))
+
+(rule
+ (targets manifest.sleep.c)
+ (enabled_if
+  (= %{context_name} "default"))
+ (action
+  (write-file manifest.sleep.c "")))
 
 (rule
  (targets manifest.schedule.c)
- (deps none.json)
+ (deps schedule.json)
+ (enabled_if
+  (= %{context_name} "solo5"))
  (action
-  (run solo5-elftool gen-manifest none.json manifest.schedule.c)))
+  (run solo5-elftool gen-manifest schedule.json manifest.schedule.c)))
+
+(rule
+ (targets schedule.json)
+ (enabled_if
+  (= %{context_name} "solo5"))
+ (action
+  (with-stdout-to
+   schedule.json
+   (run %{exe:schedule.exe}))))
+
+(rule
+ (targets manifest.schedule.c)
+ (enabled_if
+  (= %{context_name} "default"))
+ (action
+  (write-file manifest.schedule.c "")))
 
 (rule
  (targets manifest.block.c)
  (deps block.json)
+ (enabled_if
+  (= %{context_name} "solo5"))
  (action
   (run solo5-elftool gen-manifest block.json manifest.block.c)))
+
+(rule
+ (targets block.json)
+ (enabled_if
+  (= %{context_name} "solo5"))
+ (action
+  (with-stdout-to
+   block.json
+   (run %{exe:block.exe}))))
+
+(rule
+ (targets manifest.block.c)
+ (enabled_if
+  (= %{context_name} "default"))
+ (action
+  (write-file manifest.block.c "")))
 
 (cram
  (enabled_if
