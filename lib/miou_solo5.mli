@@ -190,8 +190,6 @@ type ('k, 'res) devices =
 
 val net : string -> (Net.t * Net.cfg) arg
 val block : string -> Block.t arg
-val opt : 'a arg -> 'a option arg
 val map : 'f -> ('f, 'a) devices -> 'a arg
-val dft : 'a -> 'a arg -> 'a arg
 val const : 'a -> 'a arg
 val run : ?g:Random.State.t -> ('a, 'b) devices -> 'a -> 'b

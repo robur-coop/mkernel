@@ -508,8 +508,6 @@ type 'a arg =
   | Net : string -> (Net.t * Net.cfg) arg
   | Block : string -> Block.t arg
   | Map : ('f, 'a) devices * 'f -> 'a arg
-  | Opt : 'a arg -> 'a option arg
-  | Dft : 'a * 'a arg -> 'a arg
   | Const : 'a -> 'a arg
 
 and ('k, 'res) devices =
@@ -518,9 +516,7 @@ and ('k, 'res) devices =
 
 let net name = Net name
 let block name = Block name
-let opt value = Opt value
 let map fn args = Map (args, fn)
-let dft v arg = Dft (v, arg)
 let const v = Const v
 
 let rec ctor : type a. a arg -> a = function
@@ -534,17 +530,7 @@ let rec ctor : type a. a arg -> a = function
       | Ok t -> t
       | Error (`Msg msg) -> failwithf "%s." msg
     end
-  | Opt arg -> begin
-      match go (fun fn -> fn ()) [ arg ] (fun v () -> Some v) with
-      | v -> v
-      | exception _ -> None
-    end
   | Const v -> v
-  | Dft (v, arg) -> begin
-      match go (fun fn -> fn ()) [ arg ] (fun v () -> v) with
-      | v' -> v'
-      | exception _ -> v
-    end
   | Map (args, fn) -> go (fun fn -> fn ()) args fn
 
 and go : type k res. ((unit -> res) -> res) -> (k, res) devices -> k -> res =
