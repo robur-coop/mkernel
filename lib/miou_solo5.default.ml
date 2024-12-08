@@ -11,7 +11,7 @@ module Json = struct
       | In_object of (string * t) list * stack
       | Empty
   end
-  
+
   let encode ?minify ?(size_chunk = 0x800) ~output t =
     let encoder = Jsonm.encoder ?minify `Manual in
     let buf = Bytes.create size_chunk in
@@ -51,9 +51,8 @@ end
 
 let to_json = function
   | `Block name ->
-    `O [ "name", `String name; "type", `String "BLOCK_BASIC" ]
-  | `Net name ->
-    `O [ "name", `String name; "type", `String "NET_BASIC" ]
+      `O [ ("name", `String name); ("type", `String "BLOCK_BASIC") ]
+  | `Net name -> `O [ ("name", `String name); ("type", `String "NET_BASIC") ]
 
 module Net = struct
   type t = int
@@ -107,18 +106,24 @@ let const _ = Args []
 type t = [ `Block of string | `Net of string ]
 
 let collect devices =
-  let rec go : type k res. t list -> (k, res) devices -> t list = fun acc -> function
-    | [] -> List.rev acc
-    | Block name :: rest -> go (`Block name :: acc) rest
-    | Net name :: rest -> go (`Net name :: acc) rest
-    | Args vs :: rest -> go (go acc vs) rest in
+  let rec go : type k res. t list -> (k, res) devices -> t list =
+   fun acc -> function
+     | [] -> List.rev acc
+     | Block name :: rest -> go (`Block name :: acc) rest
+     | Net name :: rest -> go (`Net name :: acc) rest
+     | Args vs :: rest -> go (go acc vs) rest
+  in
   go [] devices
 
 let run ?g:_ args _fn =
   let devices = collect args in
   let v =
-    `O List.[ "type", `String "solo5.manifest"
-            ; "version", `Float 1.0
-            ; "devices", `A (List.map to_json devices) ] in
+    `O
+      List.
+        [
+          ("type", `String "solo5.manifest"); ("version", `Float 1.0)
+        ; ("devices", `A (List.map to_json devices))
+        ]
+  in
   let output str = output_string stdout str in
   Json.encode ~output v; exit 0

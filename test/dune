@@ -28,6 +28,16 @@
   (language c)
   (names manifest.block)))
 
+(executable
+ (name cmdline)
+ (modules cmdline)
+ (modes native)
+ (link_flags :standard -cclib "-z solo5-abi=hvt")
+ (libraries miou-solo5 cmdliner fmt)
+ (foreign_stubs
+  (language c)
+  (names manifest.cmdline)))
+
 (rule
  (targets manifest.sleep.c)
  (deps sleep.json)
@@ -100,7 +110,31 @@
  (action
   (write-file manifest.block.c "")))
 
+(rule
+ (targets manifest.cmdline.c)
+ (deps cmdline.json)
+ (enabled_if
+  (= %{context_name} "solo5"))
+ (action
+  (run solo5-elftool gen-manifest cmdline.json manifest.cmdline.c)))
+
+(rule
+ (targets cmdline.json)
+ (enabled_if
+  (= %{context_name} "solo5"))
+ (action
+  (with-stdout-to
+   cmdline.json
+   (run %{exe:cmdline.exe}))))
+
+(rule
+ (targets manifest.cmdline.c)
+ (enabled_if
+  (= %{context_name} "default"))
+ (action
+  (write-file manifest.cmdline.c "")))
+
 (cram
  (enabled_if
   (= %{context_name} "solo5"))
- (deps sleep.exe schedule.exe block.exe simple.txt))
+ (deps sleep.exe schedule.exe block.exe simple.txt cmdline.exe))

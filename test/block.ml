@@ -1,7 +1,9 @@
 let cachet_of_block ~cachesize blk () =
   let map blk ~pos len =
     let bstr = Bigarray.(Array1.create char c_layout len) in
-    Miou_solo5.Block.read blk ~off:pos bstr; bstr in
+    Miou_solo5.Block.read blk ~off:pos bstr;
+    bstr
+  in
   let pagesize = Miou_solo5.Block.pagesize blk in
   Cachet.make ~cachesize ~pagesize ~map blk
 

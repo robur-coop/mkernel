@@ -1,8 +1,8 @@
 #include "solo5.h"
 
 #include <caml/bigarray.h>
-#include <caml/memory.h>
 #include <caml/callback.h>
+#include <caml/memory.h>
 #include <string.h>
 
 /* We currently have no need for these functions. They consist of releasing the
@@ -22,7 +22,8 @@ extern void caml_leave_blocking_section(void);
  * solo5_handle_set_t, which can only contain file-descriptors with a value
  * between 0 and 63. */
 
-value miou_solo5_block_acquire(value vname, value vhandle, value vlen, value vpage) {
+value miou_solo5_block_acquire(value vname, value vhandle, value vlen,
+                               value vpage) {
   CAMLparam4(vname, vhandle, vlen, vpage);
   solo5_result_t result;
   solo5_handle_t handle;
@@ -31,9 +32,9 @@ value miou_solo5_block_acquire(value vname, value vhandle, value vlen, value vpa
   result = solo5_block_acquire(String_val(vname), &handle, &bi);
 
   if (result == SOLO5_R_OK) {
-    memcpy(Bytes_val(vhandle), (uint64_t *) &handle, sizeof(uint64_t));
-    memcpy(Bytes_val(vlen), (uint64_t *) &bi.capacity, sizeof(uint64_t));
-    memcpy(Bytes_val(vpage), (uint64_t *) &bi.block_size, sizeof(uint64_t));
+    memcpy(Bytes_val(vhandle), (uint64_t *)&handle, sizeof(uint64_t));
+    memcpy(Bytes_val(vlen), (uint64_t *)&bi.capacity, sizeof(uint64_t));
+    memcpy(Bytes_val(vpage), (uint64_t *)&bi.block_size, sizeof(uint64_t));
   }
 
   CAMLreturn(Val_long(result));
@@ -59,7 +60,8 @@ intnat miou_solo5_block_write(intnat fd, intnat off, intnat len, value vbstr) {
   return result;
 }
 
-value miou_solo5_net_acquire(value vname, value vhandle, value vmac, value vmtu) {
+value miou_solo5_net_acquire(value vname, value vhandle, value vmac,
+                             value vmtu) {
   CAMLparam3(vname, vmac, vmtu);
   solo5_result_t result;
   solo5_handle_t handle;
@@ -68,9 +70,9 @@ value miou_solo5_net_acquire(value vname, value vhandle, value vmac, value vmtu)
   result = solo5_net_acquire(String_val(vname), &handle, &ni);
 
   if (result == SOLO5_R_OK) {
-    memcpy(Bytes_val(vhandle), (uint64_t *) &handle, sizeof(uint64_t));
+    memcpy(Bytes_val(vhandle), (uint64_t *)&handle, sizeof(uint64_t));
     memcpy(Bytes_val(vmac), ni.mac_address, SOLO5_NET_ALEN);
-    memcpy(Bytes_val(vmtu), (uint64_t *) &ni.mtu, sizeof(uint64_t));
+    memcpy(Bytes_val(vmtu), (uint64_t *)&ni.mtu, sizeof(uint64_t));
   }
 
   CAMLreturn(Val_long(result));
@@ -83,7 +85,7 @@ value miou_solo5_net_acquire(value vname, value vhandle, value vmac, value vmtu)
  * like the poor man's C-style reference passage in OCaml. */
 
 value miou_solo5_net_read(intnat fd, intnat off, intnat len, value vread_size,
-                           value vbstr) {
+                          value vbstr) {
   CAMLparam1(vread_size);
   solo5_handle_t handle = fd;
   size_t size = len;
@@ -112,31 +114,61 @@ intnat miou_solo5_yield(intnat ts) {
 }
 
 #ifndef __unused
-# if defined(_MSC_VER) && _MSC_VER >= 1500
-#  define __unused(x) __pragma( warning (push) ) \
-    __pragma( warning (disable:4189 ) ) \
-    x \
-    __pragma( warning (pop))
-# else
-#  define __unused(x) x __attribute__((unused))
-# endif
+#if defined(_MSC_VER) && _MSC_VER >= 1500
+#define __unused(x)                                                            \
+  __pragma(warning(push)) __pragma(warning(disable : 4189)) x __pragma(        \
+      warning(pop))
+#else
+#define __unused(x) x __attribute__((unused))
+#endif
 #endif
 #define __unit() value __unused(unit)
 
-intnat miou_solo5_clock_monotonic(__unit ()) {
+intnat miou_solo5_clock_monotonic(__unit()) {
   return (solo5_clock_monotonic());
 }
 
-intnat miou_solo5_clock_wall(__unit ()) {
-  return (solo5_clock_wall());
-}
+intnat miou_solo5_clock_wall(__unit()) { return (solo5_clock_wall()); }
 
 extern void _nolibc_init(uintptr_t, size_t);
-static char *unused_argv[] = { "uniker.ml", NULL };
+static char *unused_argv[] = {"uniker.ml", NULL};
+static const char *cmdline = "";
 
-int solo5_app_main(const struct solo5_start_info *si)  {
+static char *strdup(const char *s) {
+  size_t l = strlen(s);
+  char *d = malloc(l + 1);
+  if (!d)
+    return NULL;
+  return memcpy(d, s, l + 1);
+}
+
+static char *split(const char *s, char *dst[], size_t len) {
+  int i = 0;
+  char *rem = strdup(s);
+  char *str = rem;
+
+  while (rem != NULL && *rem != '\0' && i < len) {
+    char *e = strstr(rem, " ");
+    dst[i++] = rem;
+    if (e != NULL) {
+      *e = '\0';
+      while (*(++e) == ' ')
+        ;
+    }
+    rem = e;
+  }
+
+  return str;
+}
+
+int solo5_app_main(const struct solo5_start_info *si) {
+  char *cmdline[64] = {NULL};
+  cmdline[0] = "uniker.ml";
+
   _nolibc_init(si->heap_start, si->heap_size);
-  caml_startup(unused_argv);
+  char *tmp = split(si->cmdline, cmdline + 1, 62);
+  caml_startup(cmdline);
+  free(tmp);
 
   return (0);
 }
