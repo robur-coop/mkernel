@@ -142,11 +142,54 @@ end
 
 module Block : sig
   type t
+  (** The type of block devices. *)
 
   val pagesize : t -> int
+  (** [pagesize t] returns the number of bytes in a memory page, where "page" is
+      a fixed length block, the unit for memory allocation and block-device
+      mapping performed by the functions above. *)
+
   val atomic_read : t -> off:int -> bigstring -> unit
+  (** [atomic_read t ~off bstr] reads data of [pagesize t] bytes into the buffer
+      [bstr] from the block device [t] at byte [off]. Always reads the full
+      amount of [pagesize t] bytes ("short reads" are not possible).
+
+      This operation is called {b atomic}, meaning that it is indivisible and
+      irreducible. What's more, Miou can't do anything else (such as execute
+      other tasks) until this operation has been completed.
+
+      The advantage of this type of operation is that you can assume a precise
+      state, not only of the memory but also of the block-device, which cannot
+      change during the read.
+
+      The disadvantage is that this operation can take a long time (and make
+      your unikernel unavailable to all events for the duration of the
+      operation) depending on the file system used by the host and the hardware
+      used to store the block-device.
+
+      @raise Invalid_argument if [off] is not a multiple of [pagesize t]. *)
+
   val atomic_write : t -> off:int -> bigstring -> unit
+
+  (** {3 Scheduled operations on block-devices.}
+
+      As far as operations on scheduled block-devices are concerned, here's a
+      description of when Miou performs these operations.
+
+      As soon as Miou tries to observe possible events (such as the reception of
+      a packet - see {!val:Net.read}), it also performs a (single) block-device
+      operation. If Miou still has time (such as waiting for the end of a
+      {!val:sleep}), it can perform several operations on the block-devices
+      until it runs out of time.
+
+      In short, operations on scheduled block-devices have the lowest priority.
+      A unikernel can't go faster than the operations on waiting block-devices,
+      so it's said to be I/O-bound on block-devices. *)
+
   val read : t -> off:int -> bigstring -> unit
+  (** Like {!val:atomic_read}, but the operation is scheduled. That is, it's not
+      actually done, but will be as soon as Miou gets the chance. *)
+
   val write : t -> off:int -> bigstring -> unit
   val connect : string -> (t, [> `Msg of string ]) result
 end
@@ -181,6 +224,53 @@ external clock_wall : unit -> (int[@untagged])
 
 val sleep : int -> unit
 (** [sleep ns] blocks (suspends) the current task for [ns] nanoseconds. *)
+
+(** {2 The first entry-point of an unikernels.}
+
+    A unikernel is an application that can require several devices. {!val:net}
+    devices ([tap] interfaces) and {!val:block} devices (files). These devices
+    can be acquired by name and transformed (via {!val:map}.
+
+    For example, a block device can be transformed into a file system, provided
+    that the latter implementation uses the read and write operations associated
+    with block devices (see {!module:Block}).
+
+    {[
+      let fs ~name =
+        let open Miou_solo5 in
+        map [ block name ] @@ fun blk () -> Fat32.of_solo5_block blk
+    ]}
+
+    Miou_solo5 acquires these devices, performs the transformations requested by
+    the user and returns the results:
+
+    {[
+      let () =
+        Miou_solo5.(run [ fs ~name:"disk.img" ]) @@ fun fat32 () ->
+        let file_txt = Fat32.openfile fat32 "file.txt" in
+        let finally () = Fat32.close file_txt in
+        Fun.protect ~finally @@ fun () ->
+        let line = Fat32.read_line file_txt in
+        print_endline line
+    ]}
+
+    Finally, it executes the code given by the user. The user can therefore
+    “build-up” complex systems (such as a TCP/IP stack from a net-device, or a
+    file system from a block-device using the {!val:map} function).
+
+    {2 Miou_solo5 and build-systems.}
+
+    Miou_solo5 can be compiled as a simple executable to run on the host system
+    or a unikernel with the Solo5 toolchain. As for the executable produced, the
+    latter produces a “manifest” (in JSON format) describing the devices
+    required by the unikernel. This manifest is {b required} to compile the
+    unikernel.
+
+    It is therefore possible to:
+    + produce the executable
+    + generate the [manifest.json] via the produced executable
+    + generate the unikernel using the same code that generated the
+      [manifest.json], but with the Solo5 toolchain. *)
 
 type 'a arg
 
