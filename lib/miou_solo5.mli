@@ -136,7 +136,20 @@ module Net : sig
         if [off] and [len] do not designate a valid range of [bstr]. *)
 
   val write_bigstring : t -> ?off:int -> ?len:int -> bigstring -> unit
+  (** [write_bigstring t ?off ?len bstr] writes [len] (defaults to
+      [Bigarray.Array1.dim bstr - off]) bytes to the net device [t], taking them
+      from byte sequence [bstr], starting at position [off] (defaults to [0]) in
+      [bstr].
+
+      [write_bigstring] is currently writing directly to the net device [t].
+      Writing cannot fail.
+
+      @raise Invalid_argument
+        if [off] and [len] do not designate a valid range of [bstr]. *)
+
   val write_string : t -> ?off:int -> ?len:int -> string -> unit
+  (* Like {!val:write_bigstring}, but for [string]. *)
+
   val connect : string -> (t * cfg, [> `Msg of string ]) result
 end
 
@@ -167,9 +180,23 @@ module Block : sig
       operation) depending on the file system used by the host and the hardware
       used to store the block-device.
 
-      @raise Invalid_argument if [off] is not a multiple of [pagesize t]. *)
+      @raise Invalid_argument
+        if [off] is not a multiple of [pagesize t] or if the length of [bstr] is
+        not equal to [pagesize t]. *)
 
   val atomic_write : t -> off:int -> bigstring -> unit
+  (** [atomic_write t ~off bstr] writes data [pagesize t] bytes from the buffer
+      [bstr] to the block device identified by [t], starting at byte [off]. Data
+      is either written in it's entirety or not at all ("short writes" are not
+      possible).
+
+      This operation is called {b atomic}, meaning that it is indivisible and
+      irreducible. What's more, Miou can't do anything else (such as execute
+      other tasks) until this operation has been completed.
+
+      @raise Invalid_argument
+        if [off] is not a multiple of [pagesize t] or if the length of [bstr] is
+        not equal to [pagesize t]. *)
 
   (** {3 Scheduled operations on block-devices.}
 
@@ -191,6 +218,9 @@ module Block : sig
       actually done, but will be as soon as Miou gets the chance. *)
 
   val write : t -> off:int -> bigstring -> unit
+  (** Like {!val:atomic_write}, but the operation is scheduled. That is, it's
+      not actually done, but will be as soon as Miou gets the chance. *)
+
   val connect : string -> (t, [> `Msg of string ]) result
 end
 
@@ -273,13 +303,35 @@ val sleep : int -> unit
       [manifest.json], but with the Solo5 toolchain. *)
 
 type 'a arg
+(** ['a arg] knows the type of an argument given to {!val:run}. *)
 
+(** Multiple devices are passed to {!val:run} using a list-like syntax. For
+    instance:
+
+    {[
+      let () =
+        Miou_solo5.(run [ block "disk.img" ]) @@ fun _blk () ->
+        print_endline "Hello World!"
+    ]} *)
 type ('k, 'res) devices =
   | [] : (unit -> 'res, 'res) devices
   | ( :: ) : 'a arg * ('k, 'res) devices -> ('a -> 'k, 'res) devices
 
 val net : string -> (Net.t * Net.cfg) arg
 val block : string -> Block.t arg
+
 val map : 'f -> ('f, 'a) devices -> 'a arg
+(** [map fn devices] provides a means for creating devices using other
+    [devices]. For example, one might use a TCP/IP stack from a {!val:net}
+    device:
+
+    {[
+      let tcpip ~name : Tcpip.t Miou_solo5.arg =
+        Miou_solo5.(map [ net name ])
+        @@ fun ((net : Miou_solo5.Net.t), cfg) () -> Tcpip.of_net_device net
+    ]} *)
+
 val const : 'a -> 'a arg
+(** [const v] always returns [v]. *)
+
 val run : ?g:Random.State.t -> ('a, 'b) devices -> 'a -> 'b
