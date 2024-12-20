@@ -112,3 +112,8 @@ The executable `_build/solo5/main.exe` is not really an executable but an OS!
 What's more, you can't run it as a simple program but "virtualise" it using the
 _tender_ `solo5-hvt`. Congratulations, you've made a _complete_ operating
 system in OCaml!
+
+[miou]: https://github.com/robur-coop/miou
+[solo5]: https://github.com/Solo5/solo5
+[tap]: https://en.wikipedia.org/wiki/TUN/TAP
+[ocaml-solo5]: https://github.com/mirage/ocaml-solo5
