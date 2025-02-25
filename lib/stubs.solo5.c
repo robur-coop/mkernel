@@ -84,8 +84,7 @@ value miou_solo5_net_acquire(value vname, value vhandle, value vmac,
  * small buffer and, on the OCaml side, we just need to read it. It's a bit
  * like the poor man's C-style reference passage in OCaml. */
 
-value miou_solo5_net_read(intnat fd, intnat off, intnat len, value vread_size,
-                          value vbstr) {
+value miou_solo5_net_read(intnat fd, value vbstr, intnat off, intnat len, value vread_size) {
   CAMLparam1(vread_size);
   solo5_handle_t handle = fd;
   size_t size = len;

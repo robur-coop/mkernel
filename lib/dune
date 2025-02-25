@@ -2,7 +2,7 @@
  (name miou_solo5)
  (public_name miou-solo5)
  (modules miou_solo5)
- (libraries jsonm logs miou)
+ (libraries ohex jsonm logs miou)
  (flags
   (:standard -no-keep-locs))
  (wrapped false)

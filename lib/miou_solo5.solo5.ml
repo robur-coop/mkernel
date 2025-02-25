@@ -215,8 +215,8 @@ let domain =
 let blocking_read fd =
   let syscall = Miou.syscall () in
   Log.debug (fun m -> m "append [%d] as a reader" fd);
-  Handles.append domain.handles fd syscall;
-  Miou.suspend syscall
+  let fn () = Handles.append domain.handles fd syscall in
+  Miou.suspend ~fn syscall
 
 module Net = struct
   type t = int
@@ -229,14 +229,16 @@ module Net = struct
     let mtu = Bytes.make 8 '\000' in
     match miou_solo5_net_acquire name handle mac mtu with
     | 0 ->
-        let handle = Int64.to_int (Bytes.get_int64_ne handle 0) in
         let mac = Bytes.unsafe_to_string mac in
+        let handle = Int64.to_int (Bytes.get_int64_ne handle 0) in
         let mtu = Int64.to_int (Bytes.get_int64_ne mtu 0) in
+        Log.debug (fun m -> m "%s (mtu:%d) -> %02d" (Ohex.encode mac) mtu handle);
         Ok (handle, { mac; mtu })
     | _ -> error_msgf "Impossible to connect the net-device %s" name
 
   let read t ~off ~len bstr =
     let rec go read_size =
+      blocking_read t;
       let result = miou_solo5_net_read t bstr off len read_size in
       match result with
       | 0 -> Int64.to_int (unsafe_get_int64_ne read_size 0)
@@ -438,7 +440,7 @@ external miou_solo5_yield : (int[@untagged]) -> (int[@untagged])
   = "unimplemented" "miou_solo5_yield"
 [@@noalloc]
 
-type waiting = Infinity | Yield | Sleep
+type waiting = Infinity | Yield | Sleep of int
 
 let wait_for ~block =
   match (sleeper (), block) with
@@ -446,7 +448,7 @@ let wait_for ~block =
   | (None | Some _), false -> Yield
   | Some point, true ->
       let until = point - clock_monotonic () in
-      if until < 0 then Yield else Sleep
+      if until < 0 then Yield else Sleep until
 
 (* The behaviour of our select is a little different from what we're used to
    seeing. Currently, only a read on a net device can produce a necessary
@@ -480,21 +482,26 @@ let select ~block cancelled_syscalls =
            action on the block device ([handles != 0]), we stop and send the
            signals to Miou. If not, we take the opportunity to possibly go
            further. *)
+        let deadline = if Queue.is_empty domain.blocks then max_int else 0 in
         let signals = consume_block domain signals in
-        handles := miou_solo5_yield 0;
+        handles := miou_solo5_yield deadline;
         if !handles == 0 then go signals else signals
     | Yield ->
         (* Miou still has work to do but asks if there are any events. We ask
            Solo5 if there are any and return the possible signals to Miou. *)
         handles := miou_solo5_yield 0;
         signals
-    | Sleep ->
+    | Sleep until ->
         (* We have a sleeper that is still active and will have to wait a while
            before consuming it. In the meantime, we take action on the block
            devices and repeat our [select] if Solo5 tells us that there are no
            events ([handle == 0]). *)
+        let until = if Queue.is_empty domain.blocks then until else 0 in
+        let t0 = clock_monotonic () in
         let signals = consume_block domain signals in
-        handles := miou_solo5_yield 0;
+        let t1 = clock_monotonic () in
+        let deadline = t1 + (until - (t1 - t0)) in
+        handles := miou_solo5_yield deadline;
         if !handles == 0 then go signals else signals
   in
   let signals = consume_block domain [] in
