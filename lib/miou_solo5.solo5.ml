@@ -214,7 +214,6 @@ let domain =
 
 let blocking_read fd =
   let syscall = Miou.syscall () in
-  Log.debug (fun m -> m "append [%d] as a reader" fd);
   let fn () = Handles.append domain.handles fd syscall in
   Miou.suspend ~fn syscall
 
@@ -232,7 +231,8 @@ module Net = struct
         let mac = Bytes.unsafe_to_string mac in
         let handle = Int64.to_int (Bytes.get_int64_ne handle 0) in
         let mtu = Int64.to_int (Bytes.get_int64_ne mtu 0) in
-        Log.debug (fun m -> m "%s (mtu:%d) -> %02d" (Ohex.encode mac) mtu handle);
+        Log.debug (fun m ->
+            m "%s (mtu:%d) -> %02d" (Ohex.encode mac) mtu handle);
         Ok (handle, { mac; mtu })
     | _ -> error_msgf "Impossible to connect the net-device %s" name
 

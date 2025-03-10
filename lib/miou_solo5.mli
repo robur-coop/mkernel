@@ -21,7 +21,7 @@
     Writing a packet to the net device is direct and failsafe. In other words,
     we don't need to wait for anything to happen before writing to the net
     device (if an error occurs on your host system, the Solo5 tender will fail
-    \- and by extension, so will your unikernel). So, from the scheduler's point
+    — and by extension, so will your unikernel). So, from the scheduler's point
     of view, writing to the net device is atomic and is never suspended by the
     scheduler in order to have the opportunity to execute other tasks.
 
@@ -66,7 +66,7 @@
 
     This is why there is the other method, the read/write operation, which is
     suspended by default and will be performed when the scheduler has the best
-    opportunity to do so - in other words, when it has nothing else to do.
+    opportunity to do so — in other words, when it has nothing else to do.
 
     This type of operation can be interesting when reading/writing does not
     depend on assumptions and when these operations can be carried out at a
@@ -88,7 +88,7 @@
     operations on a block device are relegated to the lowest priority tasks.
     However, this does not mean that [Miou_solo5] is a scheduler that tries to
     complete as many tasks as possible before reaching an I/O operation (such as
-    waiting for a packet - {!val:Net.read} - or reading/writing a block device).
+    waiting for a packet — {!val:Net.read} — or reading/writing a block device).
     Miou and [Miou_solo5] aim to increase the availability of an application: in
     other words, as soon as there is an opportunity to execute a task other than
     the current one, Miou will take it.
@@ -222,6 +222,15 @@ module Block : sig
       not actually done, but will be as soon as Miou gets the chance. *)
 
   val connect : string -> (t, [> `Msg of string ]) result
+  (** [connect name] returns a block device according to the given [name]. It
+      must correspond to the name given as an argument to the Solo5 tender. For
+      example, if the invocation of our unikernel corresponds to:
+
+      {[
+        $ solo5-hvt --block:disk=file.txt -- unikernel.hvt
+      ]}
+
+      The name of the block would be: ["disk"]. *)
 end
 
 external clock_monotonic : unit -> (int[@untagged])
@@ -318,7 +327,30 @@ type ('k, 'res) devices =
   | ( :: ) : 'a arg * ('k, 'res) devices -> ('a -> 'k, 'res) devices
 
 val net : string -> (Net.t * Net.cfg) arg
+(** [net name] is a net device which can be used by the {!module:Net} module.
+    The given name must correspond to the argument given to the Solo5 tender.
+    For example, if the invocation of our unikernel corresponds to:
+
+    {[
+      $ solo5-hvt --net:service=tap0 -- unikernel.hvt
+    ]}
+
+    The name of the block would be: ["service"].
+
+    The user can specify the MAC address of the virtual interfac the user wishes
+    to use. Otherwise, Solo5 will choose a random one. It is given via the
+    {!type:Net.cfg} value. *)
+
 val block : string -> Block.t arg
+(** [block name] is a block device which can be used by the {!module:Block}
+    module. The given name must correspond to the argument given to the Solo5
+    tender. For example, if the invocation of our unikernel corresponds to:
+
+    {[
+      $ solo5-hvt --block:disk=file.txt -- unikernel.hvt
+    ]}
+
+    The name of the block would be: ["disk"]. *)
 
 val map : 'f -> ('f, 'a) devices -> 'a arg
 (** [map fn devices] provides a means for creating devices using other
@@ -335,3 +367,4 @@ val const : 'a -> 'a arg
 (** [const v] always returns [v]. *)
 
 val run : ?g:Random.State.t -> ('a, 'b) devices -> 'a -> 'b
+(** The first entry-point of an unikernel with Solo5 and Miou. *)
