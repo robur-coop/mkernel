@@ -16,4 +16,6 @@ depends: [
   "ocaml" {>= "5.2.1"}
   "dune"  {>= "3.0"}
   "miou"
+  "solo5"
+  "ocaml-solo5"
 ]
