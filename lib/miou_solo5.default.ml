@@ -1,6 +1,11 @@
 type bigstring =
   (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
 
+[@@@warning "-32-34-37"]
+
+let error_msgf fmt = Fmt.kstr (fun msg -> Error (`Msg msg)) fmt
+let failwith_error = function Ok () -> () | Error msg -> Fmt.failwith "%s" msg
+
 module Json = struct
   type value = [ `Null | `Bool of bool | `String of string | `Float of float ]
   type t = [ value | `A of t list | `O of (string * t) list ]
@@ -48,6 +53,87 @@ module Json = struct
     Jsonm.Manual.dst encoder buf 0 (Bytes.length buf);
     value (Fun.const ()) t Stack.Empty
 end
+
+type device = { name: string; value: value }
+and value = Net of net | Block of block
+and net = { interface: string; mac: Macaddr.t option }
+and block = { filename: string; sector_size: int }
+and profiling = { version: int; devices: device list }
+
+let json =
+  let open Jsont in
+  let macaddr =
+    let dec str =
+      Result.map_error (fun (`Msg msg) -> msg) (Macaddr.of_string str)
+    in
+    Jsont.of_of_string dec ~enc:Macaddr.to_string
+  in
+  let net =
+    Object.map ~kind:"NET_BASIC" (fun name interface mac ->
+        (name, { interface; mac }))
+    |> Object.mem "name" Jsont.string ~enc:(fun (name, _) -> name)
+    |> Object.mem "interface" Jsont.string ~enc:(fun (_, t) -> t.interface)
+    |> Object.opt_mem "mac" macaddr ~enc:(fun (_, t) -> t.mac)
+    |> Object.finish
+  in
+  let block =
+    Object.map ~kind:"BLOCK_BASIC" (fun name filename sector_size ->
+        (name, { filename; sector_size }))
+    |> Object.mem "name" Jsont.string ~enc:(fun (name, _) -> name)
+    |> Object.mem "filename" Jsont.string ~enc:(fun (_, t) -> t.filename)
+    |> Object.mem "sector-size" Jsont.int ~dec_absent:512 ~enc:(fun (_, t) ->
+           t.sector_size)
+    |> Object.finish
+  in
+  let cases, enc_case =
+    let net =
+      Object.Case.map "NET_BASIC" net ~dec:(fun (name, net) ->
+          { name; value= Net net })
+    in
+    let block =
+      Object.Case.map "BLOCK_BASIC" block ~dec:(fun (name, block) ->
+          { name; value= Block block })
+    in
+    let enc_case = function
+      | { name; value= Net v } -> Object.Case.value net (name, v)
+      | { name; value= Block v } -> Object.Case.value block (name, v)
+    in
+    (Object.Case.[ make net; make block ], enc_case)
+  in
+  let device =
+    Object.map ~kind:"miou.solo5.device" Fun.id
+    |> Object.case_mem "type" Jsont.string ~enc:Fun.id ~enc_case cases
+    |> Object.finish
+  in
+  let fn version _type devices = { version; devices } in
+  Object.map ~kind:"miou.solo5.profiling" fn
+  |> Object.mem "version" Jsont.int ~enc:(Fun.const 1)
+  |> Object.mem "type" Jsont.string ~enc:(Fun.const "miou.solo5.profiling")
+  |> Object.mem "devices" (Jsont.list device) ~enc:(fun t -> t.devices)
+  |> Object.finish
+
+let existing_file filename =
+  Sys.file_exists filename && Sys.is_directory filename = false
+
+let setup_profiling = ref None
+
+let load_devices filename =
+  let ic = open_in filename in
+  let finally () = close_in ic in
+  Fun.protect ~finally @@ fun () ->
+  let len = in_channel_length ic in
+  let buf = Bytes.create len in
+  really_input ic buf 0 len;
+  let str = Bytes.unsafe_to_string buf in
+  let ( let* ) = Result.bind in
+  let* profiling = Jsont_bytesrw.decode_string json str in
+  Ok (setup_profiling := Some profiling)
+
+let () =
+  match Sys.getenv_opt "MIOU_PROFILING" with
+  | Some filename when existing_file filename ->
+      failwith_error (load_devices filename)
+  | _ -> ()
 
 let to_json = function
   | `Block name ->

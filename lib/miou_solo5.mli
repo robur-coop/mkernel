@@ -20,9 +20,9 @@
 
     Writing a packet to the net device is direct and failsafe. In other words,
     we don't need to wait for anything to happen before writing to the net
-    device (if an error occurs on your host system, the Solo5 tender will fail
-    — and by extension, so will your unikernel). So, from the scheduler's point
-    of view, writing to the net device is atomic and is never suspended by the
+    device (if an error occurs on your host system, the Solo5 tender will fail —
+    and by extension, so will your unikernel). So, from the scheduler's point of
+    view, writing to the net device is atomic and is never suspended by the
     scheduler in order to have the opportunity to execute other tasks.
 
     However, this is not the case when reading the net device. You might expect
@@ -366,5 +366,5 @@ val map : 'f -> ('f, 'a) devices -> 'a arg
 val const : 'a -> 'a arg
 (** [const v] always returns [v]. *)
 
-val run : ?g:Random.State.t -> ('a, 'b) devices -> 'a -> 'b
+val run : ?g:Random.State.t -> ('k, 'ret) devices -> 'k -> 'ret
 (** The first entry-point of an unikernel with Solo5 and Miou. *)
