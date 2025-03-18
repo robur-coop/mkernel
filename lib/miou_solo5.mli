@@ -46,7 +46,7 @@
     not there will be data. A block device can be seen as content to which the
     user has one access per page (generally 4096 bytes). It can be read and
     written to. However, the read and write operation can take quite a long time
-    \- depending on the file system and your hardware on the host system.
+    — depending on the file system and your hardware on the host system.
 
     There are therefore two types of read/write. An atomic read/write and a
     scheduled read/write.
@@ -81,21 +81,80 @@
     [Miou_solo5] is based on the Miou scheduler. Basically, this scheduler
     allows the user to perform tasks in parallel. However, Solo5 does {b not}
     have more than a single core. Parallel tasks are therefore {b unavailable}
-    \- in other words, the user should {b not} use [Miou.call] but only
+    — in other words, the user should {b not} use [Miou.call] but only
     [Miou.async].
 
     Finally, the scheduler works in such a way that scheduled read/write
     operations on a block device are relegated to the lowest priority tasks.
     However, this does not mean that [Miou_solo5] is a scheduler that tries to
     complete as many tasks as possible before reaching an I/O operation (such as
-    waiting for a packet — {!val:Net.read} — or reading/writing a block device).
-    Miou and [Miou_solo5] aim to increase the availability of an application: in
-    other words, as soon as there is an opportunity to execute a task other than
-    the current one, Miou will take it.
+    waiting for a packet — {!val:Net.read_bigstring} — or reading/writing a
+    block device). Miou and [Miou_solo5] aim to increase the availability of an
+    application: in other words, as soon as there is an opportunity to execute a
+    task other than the current one, Miou will take it.
 
     In this case, all the operations (except atomic ones) present in this module
     give Miou the opportunity to suspend the current task and execute another
-    task. *)
+    task.
+
+    {2 Toolchains.}
+
+    The compilation of a unikernel requires an introspection of your code in
+    order to know exhaustively the devices necessary for your unikernel.
+    Indeed, the compilation of a unikernel requires a [manifest.o] file (which
+    can come from [solo5-elftool]) which must be linked so that the unikernel
+    is complete and can be launched by the Solo5 tender.
+
+    To compile a unikernel, [miou-solo5] offers 2 ways to compile your project
+    through 2 {i toolchains}:
+    - the default toolchain using the OCaml host compiler
+    - the Solo5 toolchain available through the [ocaml-solo5] project
+
+    A unikernel using [miou-solo5] will be compiled twice with these two
+    toolchains. Using the default toolchain, [miou-solo5] produces an executable
+    (which can be run on your computer) introspecting your code and the devices
+    required for your unikernel and generating a [manifest.json] file.
+
+    The latter is the description of the devices necessary for your unikernel
+    according to your code. It is used to generate the [manifest.o] file (via
+    [solo5-elftool gen-manifest]), which must be linked to your unikernel.
+
+    Then, the second {i executable} compiled via the Solo5 toolchain is the
+    unikernel (which should be linked with the [manifest.o]). The latter can be
+    launched via the Solo5 tender (such as [solo5-hvt]).
+
+    {2 Profiling.}
+
+    Since we compile your code in two different ways (one to obtain an
+    executable that generates [manifest.json], the other to produce a
+    unikernel), [miou-solo5] also proposes that the executable produced in the
+    first place can also {i simulate} the execution of your unikernel but as a
+    simple executable (and can be profiled by tools such as [perf] for Linux).
+
+    To run your unikernel, not as a full-fledged operating system via the Solo5
+    tender but as a simple executable, you must specify the devices you would
+    like to use in a JSON file (like the ones you specify in the Solo5 tender).
+    For example, here is a JSON file specifying 2 devices (a NET and a BLOCK)
+    that should use a [tap0] virtual interface and a [file.txt] file
+    respectively:
+
+    {[
+      { "devices":
+        [ { "name": "service", "type": "NET_BASIC", "interface": "tap0" }
+        , { "name": "disk", "type:" "BLOCK_BASIC", "filename": "file.txt" } ],
+        "type": "miou.solo5.profiling",
+        "version": 1
+      }
+    ]}
+
+    All you have to do then is run your program, specifying the environment
+    variable [MIOU_PROFILING] with this file:
+
+    {[
+      MIOU_PROFILING=profiling.json ./unikernel.exe
+    ]}
+
+    *)
 
 type bigstring =
   (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
@@ -151,6 +210,15 @@ module Net : sig
   (* Like {!val:write_bigstring}, but for [string]. *)
 
   val connect : string -> (t * cfg, [> `Msg of string ]) result
+  (** [connect name] returns a net device according to the given [name]. It
+      must correspond to the name given as an argument to the Solo5 tender. For
+      example, if the invocation of our unikernel corresponds to:
+
+      {[
+        $ solo5-hvt --net:service=tap0 -- unikernel.hvt
+      ]}
+
+      The name of the net would be: ["service"]. *)
 end
 
 module Block : sig
@@ -204,10 +272,10 @@ module Block : sig
       description of when Miou performs these operations.
 
       As soon as Miou tries to observe possible events (such as the reception of
-      a packet - see {!val:Net.read}), it also performs a (single) block-device
-      operation. If Miou still has time (such as waiting for the end of a
-      {!val:sleep}), it can perform several operations on the block-devices
-      until it runs out of time.
+      a packet — see {!val:Net.read_bigstring}), it also performs a (single)
+      block-device operation. If Miou still has time (such as waiting for the
+      end of a {!val:sleep}), it can perform several operations on the
+      block-devices until it runs out of time.
 
       In short, operations on scheduled block-devices have the lowest priority.
       A unikernel can't go faster than the operations on waiting block-devices,
