@@ -373,25 +373,25 @@ let sleep until =
 
 (* poll part of Miou_solo5 *)
 
-let rec sleeper () =
+let rec sleeper domain =
   match Heapq.find_min_exn domain.sleepers with
   | exception Heapq.Empty -> None
   | { cancelled= true; _ } ->
       Heapq.delete_min_exn domain.sleepers;
-      sleeper ()
+      sleeper domain
   | { time; _ } -> Some time
 
-let in_the_past t = t == 0 || t <= clock_monotonic ()
+let in_the_past t t0 = t == 0 || t <= t0
 
-let rec collect_sleepers domain signals =
+let rec collect_sleepers t0 domain signals =
   match Heapq.find_min_exn domain.sleepers with
   | exception Heapq.Empty -> signals
   | { cancelled= true; _ } ->
       Heapq.delete_min_exn domain.sleepers;
-      collect_sleepers domain signals
-  | { time; syscall; _ } when in_the_past time ->
+      collect_sleepers t0 domain signals
+  | { time; syscall; _ } when in_the_past time t0 ->
       Heapq.delete_min_exn domain.sleepers;
-      collect_sleepers domain (Miou.signal syscall :: signals)
+      collect_sleepers t0 domain (Miou.signal syscall :: signals)
   | _ -> signals
 
 let collect_handles ~handles domain signals =
@@ -404,16 +404,17 @@ let collect_handles ~handles domain signals =
   Handles.fold_left_map fn signals domain.handles
 
 let rec consume_block domain signals =
-  match Queue.pop domain.blocks with
-  | Rd { cancelled= true; _ } | Wr { cancelled= true; _ } ->
-      consume_block domain signals
-  | Rd { t; bstr; off; syscall; _ } ->
-      Block.unsafe_read t ~off bstr;
-      Miou.signal syscall :: signals
-  | Wr { t; bstr; off; syscall; _ } ->
-      Block.unsafe_write t ~off bstr;
-      Miou.signal syscall :: signals
-  | exception Queue.Empty -> signals
+  if Queue.is_empty domain.blocks == false
+  then match Queue.pop domain.blocks with
+    | Rd { cancelled= true; _ } | Wr { cancelled= true; _ } ->
+        consume_block domain signals
+    | Rd { t; bstr; off; syscall; _ } ->
+        Block.unsafe_read t ~off bstr;
+        Miou.signal syscall :: signals
+    | Wr { t; bstr; off; syscall; _ } ->
+        Block.unsafe_write t ~off bstr;
+        Miou.signal syscall :: signals
+  else signals
 
 let clean domain uids =
   let to_delete syscall =
@@ -432,9 +433,12 @@ let clean domain uids =
     | Rd ({ syscall; _ } as elt) | Wr ({ syscall; _ } as elt) ->
         if to_delete syscall then elt.cancelled <- true
   in
-  Handles.filter_map fn0 domain.handles;
-  Heapq.iter fn1 domain.sleepers;
-  Queue.iter fn2 domain.blocks
+  match uids with
+  | [] -> ()
+  | _ ->
+    Handles.filter_map fn0 domain.handles;
+    Heapq.iter fn1 domain.sleepers;
+    Queue.iter fn2 domain.blocks
 
 external miou_solo5_yield : (int[@untagged]) -> (int[@untagged])
   = "unimplemented" "miou_solo5_yield"
@@ -442,8 +446,8 @@ external miou_solo5_yield : (int[@untagged]) -> (int[@untagged])
 
 type waiting = Infinity | Yield | Sleep of int
 
-let wait_for ~block =
-  match (sleeper (), block) with
+let wait_for domain ~block =
+  match (sleeper domain, block) with
   | None, true -> Infinity
   | (None | Some _), false -> Yield
   | Some point, true ->
@@ -474,7 +478,7 @@ let select ~block cancelled_syscalls =
   clean domain cancelled_syscalls;
   let handles = ref 0 in
   let rec go signals =
-    match wait_for ~block with
+    match wait_for domain ~block with
     | Infinity ->
         (* Miou tells us we can wait forever ([block = true]) and we have no
            sleepers. So we're going to: take action on the block devices and ask
@@ -507,7 +511,7 @@ let select ~block cancelled_syscalls =
   let signals = consume_block domain [] in
   let signals = go signals in
   let signals = collect_handles ~handles:!handles domain signals in
-  collect_sleepers domain signals
+  collect_sleepers (clock_monotonic ()) domain signals
 
 let events _domain = { Miou.interrupt= ignore; select; finaliser= ignore }
 
