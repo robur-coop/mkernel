@@ -416,26 +416,25 @@ let rec consume_block domain signals =
         Miou.signal syscall :: signals
   else signals
 
-let clean domain uids =
-  let to_delete syscall =
-    let uid = Miou.uid syscall in
-    List.exists (fun uid' -> uid == uid') uids
-  in
-  let fn0 (handle, syscalls) =
-    match List.filter (Fun.negate to_delete) syscalls with
-    | [] -> None
-    | syscalls -> Some (handle, syscalls)
-  in
-  let fn1 (({ syscall; _ } : elt) as elt) =
-    if to_delete syscall then elt.cancelled <- true
-  in
-  let fn2 = function
-    | Rd ({ syscall; _ } as elt) | Wr ({ syscall; _ } as elt) ->
-        if to_delete syscall then elt.cancelled <- true
-  in
-  match uids with
+let clean domain = function
   | [] -> ()
-  | _ ->
+  | uids ->
+    let to_delete syscall =
+      let uid = Miou.uid syscall in
+      List.exists (fun uid' -> uid == uid') uids
+    in
+    let fn0 (handle, syscalls) =
+      match List.filter (Fun.negate to_delete) syscalls with
+      | [] -> None
+      | syscalls -> Some (handle, syscalls)
+    in
+    let fn1 (({ syscall; _ } : elt) as elt) =
+      if to_delete syscall then elt.cancelled <- true
+    in
+    let fn2 = function
+      | Rd ({ syscall; _ } as elt) | Wr ({ syscall; _ } as elt) ->
+          if to_delete syscall then elt.cancelled <- true
+    in
     Handles.filter_map fn0 domain.handles;
     Heapq.iter fn1 domain.sleepers;
     Queue.iter fn2 domain.blocks
