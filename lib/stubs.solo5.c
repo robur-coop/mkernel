@@ -92,7 +92,7 @@ value miou_solo5_net_read(intnat fd, value vbstr, intnat off, intnat len, value 
   solo5_result_t result;
   uint8_t *buf = (uint8_t *)Caml_ba_data_val(vbstr) + off;
   result = solo5_net_read(handle, buf, size, &read_size);
-  memcpy(Bytes_val(vread_size), (uint64_t *)&read_size, sizeof(uint64_t));
+  ((uint64_t *) Bytes_val(vread_size))[0] = read_size;
   CAMLreturn(Val_long(result));
 }
 

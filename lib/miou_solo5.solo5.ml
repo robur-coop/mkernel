@@ -240,11 +240,10 @@ module Net = struct
     let rec go read_size =
       blocking_read t;
       let result = miou_solo5_net_read t bstr off len read_size in
-      match result with
-      | 0 -> Int64.to_int (unsafe_get_int64_ne read_size 0)
-      | 1 -> blocking_read t; go read_size
-      | 2 -> invalid_arg "Miou_solo5.Net.read"
-      | _ -> assert false (* UNSPEC *)
+      if result == 0
+      then Int64.to_int (unsafe_get_int64_ne read_size 0)
+      else if result == 1 then go read_size
+      else invalid_arg "Miou_solo5.Net.read"
     in
     go (Bytes.make 8 '\000')
 
@@ -290,10 +289,8 @@ module Net = struct
       go off len
 
   let write t ~off ~len bstr =
-    match miou_solo5_net_write t off len bstr with
-    | 0 -> ()
-    | 2 -> invalid_arg "Miou_solo5.Net.write"
-    | _ -> assert false (* AGAIN | UNSPEC *)
+    if miou_solo5_net_write t off len bstr == 2
+    then invalid_arg "Miou_solo5.Net.write"
 
   let write_bigstring t ?(off = 0) ?len bstr =
     let len =
@@ -488,11 +485,31 @@ let select ~block cancelled_syscalls =
         let deadline = if Queue.is_empty domain.blocks then max_int else 0 in
         let signals = consume_block domain signals in
         handles := miou_solo5_yield deadline;
-        if !handles == 0 then go signals else signals
+        if !handles == 0 then (go[@tailcall]) signals else signals
     | Yield ->
         (* Miou still has work to do but asks if there are any events. We ask
            Solo5 if there are any and return the possible signals to Miou. *)
-        handles := miou_solo5_yield 0;
+        (* handles := miou_solo5_yield 0; *)
+        (* NOTE(dinosaure): This is probably the most difficult question.
+           Currently, Miou is designed in such a way that we try to synchronize
+           with system events as often as possible. The idea is to make our
+           application more receptive to external events such as the appearance
+           of an Ethernet frame.
+
+           However, such observation has a significant cost — if we make this
+           observation, we are 3/4 times slower than if we used lwt.
+
+           Miou's design is also intended so that several domains can observe
+           the occurrence of events at the same time. In the case of
+           `miou.unix`, this works very well: the more domains there are, the
+           more connections we can handle.
+
+           But in the case of a unikernel, we only have one core that has to do
+           everything. To be minimally competitive, the choice is currently made
+           not to observe the occurrence of events when Miou has tasks to do,
+           ultimately prioritizing the execution of these tasks instead of
+           preempting a possible new event. This makes our application less
+           "available" to external events. But we are more efficient... *)
         signals
     | Sleep until ->
         (* We have a sleeper that is still active and will have to wait a while
@@ -505,7 +522,7 @@ let select ~block cancelled_syscalls =
         let t1 = clock_monotonic () in
         let deadline = t1 + (until - (t1 - t0)) in
         handles := miou_solo5_yield deadline;
-        if !handles == 0 then go signals else signals
+        signals
   in
   let signals = consume_block domain [] in
   let signals = go signals in
