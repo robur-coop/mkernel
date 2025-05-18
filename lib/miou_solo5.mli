@@ -162,7 +162,7 @@ module Block : sig
       a fixed length block, the unit for memory allocation and block-device
       mapping performed by the functions above. *)
 
-  val atomic_read : t -> off:int -> bigstring -> unit
+  val atomic_read : t -> off:int -> ?dst_off:int -> bigstring -> unit
   (** [atomic_read t ~off bstr] reads data of [pagesize t] bytes into the buffer
       [bstr] from the block device [t] at byte [off]. Always reads the full
       amount of [pagesize t] bytes ("short reads" are not possible).
@@ -213,7 +213,7 @@ module Block : sig
       A unikernel can't go faster than the operations on waiting block-devices,
       so it's said to be I/O-bound on block-devices. *)
 
-  val read : t -> off:int -> bigstring -> unit
+  val read : t -> off:int -> ?dst_off:int -> bigstring -> unit
   (** Like {!val:atomic_read}, but the operation is scheduled. That is, it's not
       actually done, but will be as soon as Miou gets the chance. *)
 

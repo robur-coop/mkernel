@@ -73,6 +73,7 @@ external miou_solo5_block_read :
      (int[@untagged])
   -> (int[@untagged])
   -> (int[@untagged])
+  -> (int[@untagged])
   -> bigstring
   -> (int[@untagged]) = "unimplemented" "miou_solo5_block_read"
 [@@noalloc]
@@ -109,13 +110,13 @@ module Block_direct = struct
     | errno ->
         error_msgf "Impossible to connect the block-device %s (%d)" name errno
 
-  let unsafe_read t ~off bstr =
-    match miou_solo5_block_read t.handle off t.pagesize bstr with
+  let unsafe_read t ~off ?(dst_off= 0) bstr =
+    match miou_solo5_block_read t.handle off dst_off t.pagesize bstr with
     | 0 -> ()
     | 2 -> invalid_arg "Miou_solo5.Block.read"
     | _ -> assert false (* AGAIN | UNSPEC *)
 
-  let atomic_read t ~off bstr =
+  let atomic_read t ~off ?dst_off bstr =
     if off land (t.pagesize - 1) != 0 then
       invalid_argf
         "Miou_solo5.Block.atomic_read: [off] must be aligned to the pagesize \
@@ -126,7 +127,7 @@ module Block_direct = struct
         "Miou_solo5.Block.atomic_read: length of [bstr] must be greater than \
          or equal to one page (%d)"
         t.pagesize;
-    unsafe_read t ~off bstr
+    unsafe_read t ~off ?dst_off bstr
 
   let unsafe_write t ~off bstr =
     match miou_solo5_block_write t.handle off t.pagesize bstr with
@@ -195,6 +196,7 @@ and arguments = {
     t: Block_direct.t
   ; bstr: bigstring
   ; off: int
+  ; dst_off: int
   ; syscall: Miou.syscall
   ; mutable cancelled: bool
 }
@@ -326,7 +328,7 @@ end
 module Block = struct
   include Block_direct
 
-  let read t ~off bstr =
+  let read t ~off ?(dst_off= 0) bstr =
     if off land (t.pagesize - 1) != 0 then
       invalid_argf
         "Miou_solo5.Block.read: [off] must be aligned to the pagesize (%d)"
@@ -337,7 +339,7 @@ module Block = struct
          to one page (%d)"
         t.pagesize;
     let syscall = Miou.syscall () in
-    let args = { t; bstr; off; syscall; cancelled= false } in
+    let args = { t; bstr; off; dst_off; syscall; cancelled= false } in
     Queue.push (Rd args) domain.blocks;
     Miou.suspend syscall
 
@@ -352,7 +354,7 @@ module Block = struct
          equal to one page (%d)"
         t.pagesize;
     let syscall = Miou.syscall () in
-    let args = { t; bstr; off; syscall; cancelled= false } in
+    let args = { t; bstr; off; dst_off= 0; syscall; cancelled= false } in
     Queue.push (Wr args) domain.blocks;
     Miou.suspend syscall
 end

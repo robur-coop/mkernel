@@ -40,12 +40,12 @@ value miou_solo5_block_acquire(value vname, value vhandle, value vlen,
   CAMLreturn(Val_long(result));
 }
 
-intnat miou_solo5_block_read(intnat fd, intnat off, intnat len, value vbstr) {
+intnat miou_solo5_block_read(intnat fd, intnat off, intnat dst_off, intnat len, value vbstr) {
   solo5_handle_t handle = fd;
   solo5_off_t offset = off;
   size_t size = len;
   solo5_result_t result;
-  uint8_t *buf = (uint8_t *)Caml_ba_data_val(vbstr);
+  uint8_t *buf = (uint8_t *)Caml_ba_data_val(vbstr) + dst_off;
   result = solo5_block_read(handle, off, buf, size);
   return result;
 }

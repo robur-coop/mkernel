@@ -71,9 +71,9 @@ module Block = struct
 
   let pagesize _ = assert false
   let connect _name = assert false
-  let atomic_read _t ~off:_ _bstr = assert false
+  let atomic_read _t ~off:_ ?dst_off:_ _bstr = assert false
   let atomic_write _t ~off:_ _bstr = assert false
-  let read _t ~off:_ _bstr = assert false
+  let read _t ~off:_ ?dst_off:_ _bstr = assert false
   let write _t ~off:_ _bstr = assert false
 end
 
