@@ -40,22 +40,22 @@ value miou_solo5_block_acquire(value vname, value vhandle, value vlen,
   CAMLreturn(Val_long(result));
 }
 
-intnat miou_solo5_block_read(intnat fd, intnat off, intnat len, value vbstr) {
+intnat miou_solo5_block_read(intnat fd, intnat src_off, intnat dst_off, intnat len, value vbstr) {
   solo5_handle_t handle = fd;
-  solo5_off_t offset = off;
+  solo5_off_t offset = src_off;
   size_t size = len;
   solo5_result_t result;
-  uint8_t *buf = (uint8_t *)Caml_ba_data_val(vbstr);
-  result = solo5_block_read(handle, off, buf, size);
+  uint8_t *buf = (uint8_t *)Caml_ba_data_val(vbstr) + dst_off;
+  result = solo5_block_read(handle, offset, buf, size);
   return result;
 }
 
-intnat miou_solo5_block_write(intnat fd, intnat off, intnat len, value vbstr) {
+intnat miou_solo5_block_write(intnat fd, intnat src_off, intnat dst_off, intnat len, value vbstr) {
   solo5_handle_t handle = fd;
-  solo5_off_t offset = off;
+  solo5_off_t offset = dst_off;
   size_t size = len;
   solo5_result_t result;
-  const uint8_t *buf = (uint8_t *)Caml_ba_data_val(vbstr);
+  const uint8_t *buf = (uint8_t *)Caml_ba_data_val(vbstr) + src_off;
   result = solo5_block_write(handle, offset, buf, size);
   return result;
 }
