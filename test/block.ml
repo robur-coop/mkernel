@@ -1,7 +1,7 @@
 let cachet_of_block ~cachesize blk () =
   let map blk ~pos len =
     let bstr = Bigarray.(Array1.create char c_layout len) in
-    Miou_solo5.Block.read blk ~off:pos bstr;
+    Miou_solo5.Block.read blk ~src_off:pos bstr;
     bstr
   in
   let pagesize = Miou_solo5.Block.pagesize blk in
@@ -16,11 +16,11 @@ let run cachesize =
   let pagesize = Cachet.pagesize blk in
   let prm =
     Miou.async @@ fun () ->
-    let bstr = Bigarray.(Array1.create char c_layout pagesize) in
+    let bstr = Bigarray.(Array1.create char c_layout (2 * pagesize)) in
     let blk = Cachet.fd blk in
-    Miou_solo5.Block.atomic_read blk ~off:0 bstr;
+    Miou_solo5.Block.atomic_read blk ~src_off:0 ~dst_off:pagesize bstr;
     let bstr = Cachet.Bstr.of_bigstring bstr in
-    let str = Cachet.Bstr.to_string bstr in
+    let str = Cachet.Bstr.sub_string ~off:pagesize ~len:pagesize bstr in
     let hash = Digest.string str in
     Fmt.pr "%08x: %s\n%!" 0 (Digest.to_hex hash)
   in

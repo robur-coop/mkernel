@@ -71,8 +71,8 @@ external miou_solo5_block_acquire : string -> bytes -> bytes -> bytes -> int
 
 external miou_solo5_block_read :
      (int[@untagged])
-  -> (int[@untagged])
-  -> (int[@untagged])
+  -> src_off:(int[@untagged])
+  -> dst_off:(int[@untagged])
   -> (int[@untagged])
   -> bigstring
   -> (int[@untagged]) = "unimplemented" "miou_solo5_block_read"
@@ -80,7 +80,8 @@ external miou_solo5_block_read :
 
 external miou_solo5_block_write :
      (int[@untagged])
-  -> (int[@untagged])
+  -> src_off:(int[@untagged])
+  -> dst_off:(int[@untagged])
   -> (int[@untagged])
   -> bigstring
   -> (int[@untagged]) = "unimplemented" "miou_solo5_block_write"
@@ -110,43 +111,43 @@ module Block_direct = struct
     | errno ->
         error_msgf "Impossible to connect the block-device %s (%d)" name errno
 
-  let unsafe_read t ~off ?(dst_off= 0) bstr =
-    match miou_solo5_block_read t.handle off dst_off t.pagesize bstr with
+  let unsafe_read t ~src_off ?(dst_off = 0) dst =
+    match miou_solo5_block_read t.handle ~src_off ~dst_off t.pagesize dst with
     | 0 -> ()
     | 2 -> invalid_arg "Miou_solo5.Block.read"
     | _ -> assert false (* AGAIN | UNSPEC *)
 
-  let atomic_read t ~off ?dst_off bstr =
-    if off land (t.pagesize - 1) != 0 then
+  let atomic_read t ~src_off ?(dst_off = 0) dst =
+    if dst_off < 0 || dst_off > Bigarray.Array1.dim dst - t.pagesize then
       invalid_argf
-        "Miou_solo5.Block.atomic_read: [off] must be aligned to the pagesize \
-         (%d)"
-        t.pagesize;
-    if Bigarray.Array1.dim bstr < t.pagesize then
+        "Miou_solo5.Block.atomic_read: [dst_off] (%d) or length (%d) of the \
+         destination bigarray are wrong."
+        dst_off (Bigarray.Array1.dim dst);
+    if src_off land (t.pagesize - 1) != 0 then
       invalid_argf
-        "Miou_solo5.Block.atomic_read: length of [bstr] must be greater than \
-         or equal to one page (%d)"
+        "Miou_solo5.Block.atomic_read: [src_off] must be aligned to the \
+         pagesize (%d)"
         t.pagesize;
-    unsafe_read t ~off ?dst_off bstr
+    unsafe_read t ~src_off ~dst_off dst
 
-  let unsafe_write t ~off bstr =
-    match miou_solo5_block_write t.handle off t.pagesize bstr with
+  let unsafe_write t ?(src_off = 0) ~dst_off src =
+    match miou_solo5_block_write t.handle ~src_off ~dst_off t.pagesize src with
     | 0 -> ()
     | 2 -> invalid_arg "Miou_solo5.Block.write"
     | _ -> assert false (* AGAIN | UNSPEC *)
 
-  let atomic_write t ~off bstr =
-    if off land (t.pagesize - 1) != 0 then
+  let atomic_write t ?(src_off = 0) ~dst_off src =
+    if src_off < 0 || src_off > Bigarray.Array1.dim src - t.pagesize then
       invalid_argf
-        "Miou_solo5.Block.atomic_write: [off] must be aligned to the pagesize \
-         (%d)"
-        t.pagesize;
-    if Bigarray.Array1.dim bstr < t.pagesize then
+        "Miou_solo5.Block.atomic_write: [src_off] (%d) or length (%d) of the \
+         destination bigarray are wrong."
+        dst_off (Bigarray.Array1.dim src);
+    if dst_off land (t.pagesize - 1) != 0 then
       invalid_argf
-        "Miou_solo5.Block.atomic_write: length of [bstr] must be greater than \
-         or equal to one page (%d)"
+        "Miou_solo5.Block.atomic_write: [dst_off] must be aligned to the \
+         pagesize (%d)"
         t.pagesize;
-    unsafe_write t ~off bstr
+    unsafe_write t ~src_off ~dst_off src
 end
 
 module Handles = struct
@@ -195,7 +196,7 @@ type action = Rd of arguments | Wr of arguments
 and arguments = {
     t: Block_direct.t
   ; bstr: bigstring
-  ; off: int
+  ; src_off: int
   ; dst_off: int
   ; syscall: Miou.syscall
   ; mutable cancelled: bool
@@ -328,33 +329,27 @@ end
 module Block = struct
   include Block_direct
 
-  let read t ~off ?(dst_off= 0) bstr =
-    if off land (t.pagesize - 1) != 0 then
+  let read t ~src_off ?(dst_off = 0) bstr =
+    if dst_off < 0 || dst_off > Bigarray.Array1.dim bstr - t.pagesize then
+      invalid_argf "TODO";
+    if src_off land (t.pagesize - 1) != 0 then
       invalid_argf
         "Miou_solo5.Block.read: [off] must be aligned to the pagesize (%d)"
         t.pagesize;
-    if Bigarray.Array1.dim bstr < t.pagesize then
-      invalid_argf
-        "Miou_solo5.Block.read: length of [bstr] must be greater than or equal \
-         to one page (%d)"
-        t.pagesize;
     let syscall = Miou.syscall () in
-    let args = { t; bstr; off; dst_off; syscall; cancelled= false } in
+    let args = { t; bstr; src_off; dst_off; syscall; cancelled= false } in
     Queue.push (Rd args) domain.blocks;
     Miou.suspend syscall
 
-  let write t ~off bstr =
-    if off land (t.pagesize - 1) != 0 then
+  let write t ~src_off ?(dst_off = 0) bstr =
+    if dst_off < 0 || dst_off > Bigarray.Array1.dim bstr - t.pagesize then
+      invalid_arg "TODO";
+    if src_off land (t.pagesize - 1) != 0 then
       invalid_argf
         "Miou_solo5.Block.write: [off] must be aligned to the pagesize (%d)"
         t.pagesize;
-    if Bigarray.Array1.dim bstr < t.pagesize then
-      invalid_argf
-        "Miou_solo5.Block.write: length of [bstr] must be greater than or \
-         equal to one page (%d)"
-        t.pagesize;
     let syscall = Miou.syscall () in
-    let args = { t; bstr; off; dst_off= 0; syscall; cancelled= false } in
+    let args = { t; bstr; src_off; dst_off= 0; syscall; cancelled= false } in
     Queue.push (Wr args) domain.blocks;
     Miou.suspend syscall
 end
@@ -409,11 +404,11 @@ let rec consume_block domain signals =
   match Queue.pop domain.blocks with
   | Rd { cancelled= true; _ } | Wr { cancelled= true; _ } ->
       consume_block domain signals
-  | Rd { t; bstr; off; syscall; _ } ->
-      Block.unsafe_read t ~off bstr;
+  | Rd { t; bstr; src_off; dst_off; syscall; _ } ->
+      Block.unsafe_read t ~src_off ~dst_off bstr;
       Miou.signal syscall :: signals
-  | Wr { t; bstr; off; syscall; _ } ->
-      Block.unsafe_write t ~off bstr;
+  | Wr { t; bstr; src_off; dst_off; syscall; _ } ->
+      Block.unsafe_write t ~src_off ~dst_off bstr;
       Miou.signal syscall :: signals
   | exception Queue.Empty -> signals
 
