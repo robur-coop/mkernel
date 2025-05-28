@@ -354,6 +354,15 @@ module Block = struct
     Miou.suspend syscall
 end
 
+module Hook = struct
+  type t = (unit -> unit) Miou.Sequence.node
+
+  let hooks = Miou.Sequence.create ()
+  let add fn = Miou.Sequence.(add Left) hooks fn
+  let remove node = Miou.Sequence.remove node
+  let run () = Miou.Sequence.iter ~f:(fun fn -> fn ()) hooks
+end
+
 external clock_monotonic : unit -> (int[@untagged])
   = "unimplemented" "miou_solo5_clock_monotonic"
 [@@noalloc]
@@ -482,11 +491,12 @@ let select ~block cancelled_syscalls =
         let deadline = if Queue.is_empty domain.blocks then max_int else 0 in
         let signals = consume_block domain signals in
         handles := miou_solo5_yield deadline;
+        Hook.run ();
         if !handles == 0 then go signals else signals
     | Yield ->
         (* Miou still has work to do but asks if there are any events. We ask
            Solo5 if there are any and return the possible signals to Miou. *)
-        handles := miou_solo5_yield 0;
+        (* handles := miou_solo5_yield 0; *)
         signals
     | Sleep until ->
         (* We have a sleeper that is still active and will have to wait a while
@@ -499,6 +509,7 @@ let select ~block cancelled_syscalls =
         let t1 = clock_monotonic () in
         let deadline = t1 + (until - (t1 - t0)) in
         handles := miou_solo5_yield deadline;
+        Hook.run ();
         if !handles == 0 then go signals else signals
   in
   let signals = consume_block domain [] in
