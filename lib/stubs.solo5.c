@@ -130,8 +130,6 @@ intnat miou_solo5_clock_monotonic(__unit()) {
 intnat miou_solo5_clock_wall(__unit()) { return (solo5_clock_wall()); }
 
 extern void _nolibc_init(uintptr_t, size_t);
-static char *unused_argv[] = {"uniker.ml", NULL};
-static const char *cmdline = "";
 
 static char *strdup(const char *s) {
   size_t l = strlen(s);
