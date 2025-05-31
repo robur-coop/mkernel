@@ -238,13 +238,13 @@ module Hook : sig
   type t
   (** Type of hooks.
 
-      Unlike Miou hooks, Miou_solo5's hooks only execute when we perform the
-      [solo5_yield] hypercall. In other words, these hooks only execute when
+      Unlike Miou hooks, Miou_solo5's hooks only are executed when we perform
+      the [solo5_yield] hypercall. In other words, these hooks only execute when
       waiting for a new external event.
 
-      Such a hook can be useful for {i obscuring} certain computations because
-      the hook is only executed when truly random events occur: the occurrence
-      of external events. *)
+      Such a hook can be useful for certain computations because the hook is
+      only executed when truly random events occur: the occurrence of external
+      events. *)
 
   val add : (unit -> unit) -> t
   (** [add fn] adds a new hook (a function) which will be executed at every new
@@ -252,8 +252,10 @@ module Hook : sig
 
       A hook {b cannot} interact with the scheduler and, what's more, cannot use
       the effects associated with Miou. Miou's effects manager is not attached
-      to it. If the given function raises an argument, the hook is {b deleted}.
-      The user can remove the actual hook with {!val:remove}. *)
+      to it. If the given function raises an exception, the hook is {b deleted}.
+      The user can remove the actual hook with {!val:remove}. It should be noted
+      that if the user attempts to perform a Miou effect, an [Effect.Unhandled]
+      exception is raised, which results in the hook being removed. *)
 
   val remove : t -> unit
   (** [remove h] removes the hook [h]. If [h] does not belong to the internal
