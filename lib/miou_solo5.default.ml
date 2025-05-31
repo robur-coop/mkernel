@@ -77,6 +77,14 @@ module Block = struct
   let write _t ~src_off:_ ?dst_off:_ _bstr = assert false
 end
 
+module Hook = struct
+  type t = (unit -> unit) Miou.Sequence.node
+
+  let hooks = Miou.Sequence.create ()
+  let add fn = Miou.Sequence.(add Left) hooks fn
+  let remove node = Miou.Sequence.remove node
+end
+
 external clock_monotonic : unit -> (int[@untagged])
   = "unimplemented" "miou_solo5_clock_monotonic"
 [@@noalloc]
