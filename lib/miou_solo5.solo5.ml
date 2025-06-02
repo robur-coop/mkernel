@@ -497,6 +497,15 @@ let select ~block cancelled_syscalls =
         (* Miou still has work to do but asks if there are any events. We ask
            Solo5 if there are any and return the possible signals to Miou. *)
         (* handles := miou_solo5_yield 0; *)
+        (* It should be noted here that we can set the Miou scheduler as [lwt].
+           It also seems that from a performance point of view, it is more
+           interesting to "let" Miou finish all tasks at suspension points
+           rather than observing events regularly. This decreases the
+           availability of the unikernel but improves performance.
+
+           One option might be to force event monitoring according to the [utcp]
+           timer (every 100ms) in order to increase availability without
+           significantly impacting performance. TODO *)
         signals
     | Sleep until ->
         (* We have a sleeper that is still active and will have to wait a while
