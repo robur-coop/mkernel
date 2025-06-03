@@ -74,7 +74,7 @@ module Block = struct
   let atomic_read _t ~src_off:_ ?dst_off:_ _bstr = assert false
   let atomic_write _t ?src_off:_ ~dst_off:_ _bstr = assert false
   let read _t ~src_off:_ ?dst_off:_ _bstr = assert false
-  let write _t ~src_off:_ ?dst_off:_ _bstr = assert false
+  let write _t ?src_off:_ ~dst_off:_ _bstr = assert false
 end
 
 module Hook = struct
