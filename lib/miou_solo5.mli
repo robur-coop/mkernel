@@ -218,7 +218,7 @@ module Block : sig
   (** Like {!val:atomic_read}, but the operation is scheduled. That is, it's not
       actually done, but will be as soon as Miou gets the chance. *)
 
-  val write : t -> src_off:int -> ?dst_off:int -> bigstring -> unit
+  val write : t -> ?src_off:int -> dst_off:int -> bigstring -> unit
   (** Like {!val:atomic_write}, but the operation is scheduled. That is, it's
       not actually done, but will be as soon as Miou gets the chance. *)
 

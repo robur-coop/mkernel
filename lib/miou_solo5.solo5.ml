@@ -341,15 +341,15 @@ module Block = struct
     Queue.push (Rd args) domain.blocks;
     Miou.suspend syscall
 
-  let write t ~src_off ?(dst_off = 0) bstr =
-    if dst_off < 0 || dst_off > Bigarray.Array1.dim bstr - t.pagesize then
+  let write t ?(src_off = 0) ~dst_off bstr =
+    if src_off < 0 || src_off > Bigarray.Array1.dim bstr - t.pagesize then
       invalid_arg "TODO";
-    if src_off land (t.pagesize - 1) != 0 then
+    if dst_off land (t.pagesize - 1) != 0 then
       invalid_argf
         "Miou_solo5.Block.write: [off] must be aligned to the pagesize (%d)"
         t.pagesize;
     let syscall = Miou.syscall () in
-    let args = { t; bstr; src_off; dst_off= 0; syscall; cancelled= false } in
+    let args = { t; bstr; src_off; dst_off; syscall; cancelled= false } in
     Queue.push (Wr args) domain.blocks;
     Miou.suspend syscall
 end
