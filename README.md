@@ -29,7 +29,7 @@ First of all, we can build a simple executable from this code:
  (libraries miou-solo5)
  (foreign_stubs
   (language c)
-  (names manifest.sleep)))
+  (names manifest)))
 ```
 
 As you can see, the executable needs a "manifest.c". This is a file that
@@ -103,6 +103,7 @@ context:
 
 We can now compile our unikernel with a simple: `dune build`!
 ```shell
+$ opam source miou-solo5
 $ dune build
 $ solo5-hvt _build/solo5/main.exe --solo5:quiet
 Hello World
