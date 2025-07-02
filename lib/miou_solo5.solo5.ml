@@ -371,9 +371,11 @@ external clock_wall : unit -> (int[@untagged])
   = "unimplemented" "miou_solo5_clock_wall"
 [@@noalloc]
 
+let now = ref clock_monotonic
+
 let sleep until =
   let syscall = Miou.syscall () in
-  let elt = { time= clock_monotonic () + until; syscall; cancelled= false } in
+  let elt = { time= !now () + until; syscall; cancelled= false } in
   Heapq.insert elt domain.sleepers;
   Miou.suspend syscall
 
@@ -387,7 +389,7 @@ let rec sleeper () =
       sleeper ()
   | { time; _ } -> Some time
 
-let in_the_past t = t == 0 || t <= clock_monotonic ()
+let in_the_past t = t == 0 || t <= !now ()
 
 let rec collect_sleepers domain signals =
   match Heapq.find_min_exn domain.sleepers with
@@ -453,7 +455,7 @@ let wait_for ~block =
   | None, true -> Infinity
   | (None | Some _), false -> Yield
   | Some point, true ->
-      let until = point - clock_monotonic () in
+      let until = point - !now () in
       if until < 0 then Yield else Sleep until
 
 (* The behaviour of our select is a little different from what we're used to
@@ -513,9 +515,9 @@ let select ~block cancelled_syscalls =
            devices and repeat our [select] if Solo5 tells us that there are no
            events ([handle == 0]). *)
         let until = if Queue.is_empty domain.blocks then until else 0 in
-        let t0 = clock_monotonic () in
+        let t0 = !now () in
         let signals = consume_block domain signals in
-        let t1 = clock_monotonic () in
+        let t1 = !now () in
         let deadline = t1 + (until - (t1 - t0)) in
         handles := miou_solo5_yield deadline;
         Hook.run ();
@@ -566,7 +568,8 @@ and go : type k res. ((unit -> res) -> res) -> (k, res) devices -> k -> res =
         let r = f v in
         go run devices r
 
-let run ?g devices fn =
+let run ?now:clock ?g devices fn =
+  Option.iter (fun fn -> now := fn) clock;
   Miou.run ~events ~domains:0 ?g @@ fun () ->
   let run fn = fn () in
   go run devices fn

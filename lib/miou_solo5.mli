@@ -395,5 +395,6 @@ val map : 'f -> ('f, 'a) devices -> 'a arg
 val const : 'a -> 'a arg
 (** [const v] always returns [v]. *)
 
-val run : ?g:Random.State.t -> ('a, 'b) devices -> 'a -> 'b
+val run :
+  ?now:(unit -> int) -> ?g:Random.State.t -> ('a, 'b) devices -> 'a -> 'b
 (** The first entry-point of an unikernel with Solo5 and Miou. *)

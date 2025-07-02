@@ -17,5 +17,8 @@ depends: [
   "dune"  {>= "3.0"}
   "miou"
   "solo5"
+  "logs"
+  "ohex"
+  "jsonm"
   "ocaml-solo5"
 ]

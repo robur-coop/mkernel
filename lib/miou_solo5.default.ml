@@ -121,7 +121,7 @@ let collect devices =
   in
   go [] devices
 
-let run ?g:_ args _fn =
+let run ?now:_ ?g:_ args _fn =
   let devices = collect args in
   let v =
     `O
