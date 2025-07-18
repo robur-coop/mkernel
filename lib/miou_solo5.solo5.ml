@@ -241,7 +241,6 @@ module Net = struct
 
   let read t ~off ~len bstr =
     let rec go read_size =
-      blocking_read t;
       let result = miou_solo5_net_read t bstr off len read_size in
       match result with
       | 0 -> Int64.to_int (unsafe_get_int64_ne read_size 0)
@@ -521,7 +520,7 @@ let select ~block cancelled_syscalls =
         let deadline = t1 + (until - (t1 - t0)) in
         handles := miou_solo5_yield deadline;
         Hook.run ();
-        if !handles == 0 then go signals else signals
+        if !handles == 0 then (go [@tailcall]) signals else signals
   in
   let signals = consume_block domain [] in
   let signals = go signals in
