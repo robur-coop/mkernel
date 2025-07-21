@@ -1,8 +1,12 @@
 (lang dune 3.0)
-(context (default))
+(context (default (merlin)))
 (context (default
  (name solo5)
  (host default)
  (toolchain solo5)
- (merlin)
+ (disable_dynamically_linked_foreign_archives true)))
+(context (default
+ (name unikraft)
+ (host default)
+ (toolchain unikraft)
  (disable_dynamically_linked_foreign_archives true)))

@@ -148,7 +148,10 @@ module Net : sig
         if [off] and [len] do not designate a valid range of [bstr]. *)
 
   val write_string : t -> ?off:int -> ?len:int -> string -> unit
-  (* Like {!val:write_bigstring}, but for [string]. *)
+  (** Like {!val:write_bigstring}, but for [string]. *)
+
+  val write_into : t -> len:int -> fn:(bigstring -> int) -> unit
+  (** TODO *)
 
   val connect : string -> (t * cfg, [> `Msg of string ]) result
 end
@@ -262,9 +265,7 @@ module Hook : sig
       state of Miou_solo5, it raises an exception [Invalid_argument]. *)
 end
 
-external clock_monotonic : unit -> (int[@untagged])
-  = "unimplemented" "miou_solo5_clock_monotonic"
-[@@noalloc]
+val clock_monotonic : unit -> int
 (** [clock_monotonic ()] returns monotonic time since an unspecified period in
     the past.
 
@@ -277,9 +278,7 @@ external clock_monotonic : unit -> (int[@untagged])
     This operation is {b atomic}. In other words, it does not give the scheduler
     the opportunity to execute another task. *)
 
-external clock_wall : unit -> (int[@untagged])
-  = "unimplemented" "miou_solo5_clock_wall"
-[@@noalloc]
+val clock_wall : unit -> int
 (** [clock_wall ()] returns wall clock in UTC since the UNIX epoch (1970-01-01).
 
     The wall clock corresponds to the host's clock. Indeed, each time

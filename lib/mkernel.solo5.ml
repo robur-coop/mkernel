@@ -44,6 +44,8 @@ let bigstring_blit_from_string src ~src_off dst ~dst_off ~len =
     bigstring_set_uint8 dst (dst_off + i) v
   done
 
+(* Unsafe part, C stubs. *)
+
 external miou_solo5_net_acquire : string -> bytes -> bytes -> bytes -> int
   = "unimplemented" "miou_solo5_net_acquire"
 [@@noalloc]
@@ -54,7 +56,7 @@ external miou_solo5_net_read :
   -> (int[@untagged])
   -> (int[@untagged])
   -> bytes
-  -> int = "unimplemented" "miou_solo5_net_read"
+  -> (int[@untagged]) = "unimplemented" "miou_solo5_net_read"
 [@@noalloc]
 
 external miou_solo5_net_write :
@@ -86,6 +88,8 @@ external miou_solo5_block_write :
   -> bigstring
   -> (int[@untagged]) = "unimplemented" "miou_solo5_block_write"
 [@@noalloc]
+
+(* End of the unsafe part. Come back to the OCaml world! *)
 
 external unsafe_get_int64_ne : bytes -> int -> int64 = "%caml_bytes_get64u"
 
@@ -304,6 +308,11 @@ module Net = struct
     if len < 0 || off < 0 || off > Bigarray.Array1.dim bstr - len then
       invalid_arg "Miou_solo5.Net.write_bigstring: out of bounds";
     write t ~off ~len bstr
+
+  let write_into t ~len ~fn =
+    let bstr = Bigarray.Array1.create Bigarray.char Bigarray.c_layout len in
+    let len = fn bstr in
+    write_bigstring t ~len bstr
 
   let write_string =
     let bstr = Bigarray.(Array1.create char c_layout 0x7ff) in

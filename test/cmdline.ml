@@ -1,5 +1,5 @@
 let run foo bar =
-  Miou_solo5.(run []) @@ fun () ->
+  Mkernel.(run []) @@ fun () ->
   let argv = Array.to_list Sys.argv in
   Fmt.pr "%s\n%!" (String.concat " " argv);
   Fmt.pr "foo: %a\n%!" Fmt.(Dump.option (fmt "%S")) foo;

@@ -21,6 +21,7 @@ depends: [
   "ohex"
   "jsonm"
   "ocaml-solo5"
+  "ocaml-unikraft"
   "hxd" {with-test}
   "fmt" {with-test}
   "cachet" {with-test}

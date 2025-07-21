@@ -40,7 +40,8 @@ value miou_solo5_block_acquire(value vname, value vhandle, value vlen,
   CAMLreturn(Val_long(result));
 }
 
-intnat miou_solo5_block_read(intnat fd, intnat src_off, intnat dst_off, intnat len, value vbstr) {
+intnat miou_solo5_block_read(intnat fd, intnat src_off, intnat dst_off,
+                             intnat len, value vbstr) {
   solo5_handle_t handle = fd;
   solo5_off_t offset = src_off;
   size_t size = len;
@@ -50,7 +51,8 @@ intnat miou_solo5_block_read(intnat fd, intnat src_off, intnat dst_off, intnat l
   return result;
 }
 
-intnat miou_solo5_block_write(intnat fd, intnat src_off, intnat dst_off, intnat len, value vbstr) {
+intnat miou_solo5_block_write(intnat fd, intnat src_off, intnat dst_off,
+                              intnat len, value vbstr) {
   solo5_handle_t handle = fd;
   solo5_off_t offset = dst_off;
   size_t size = len;
@@ -84,8 +86,12 @@ value miou_solo5_net_acquire(value vname, value vhandle, value vmac,
  * small buffer and, on the OCaml side, we just need to read it. It's a bit
  * like the poor man's C-style reference passage in OCaml. */
 
-value miou_solo5_net_read(intnat fd, value vbstr, intnat off, intnat len, value vread_size) {
-  CAMLparam1(vread_size);
+/* NOTE(dinosaure): We don't need the OCaml ceremony (even if we use a value)
+ * since there is no chance that the OCaml GC could intervene between the start
+ * and end of this function. */
+
+intnat miou_solo5_net_read(intnat fd, value vbstr, intnat off, intnat len,
+                           value vread_size) {
   solo5_handle_t handle = fd;
   size_t size = len;
   size_t read_size;
@@ -93,7 +99,7 @@ value miou_solo5_net_read(intnat fd, value vbstr, intnat off, intnat len, value 
   uint8_t *buf = (uint8_t *)Caml_ba_data_val(vbstr) + off;
   result = solo5_net_read(handle, buf, size, &read_size);
   memcpy(Bytes_val(vread_size), (uint64_t *)&read_size, sizeof(uint64_t));
-  CAMLreturn(Val_long(result));
+  return result;
 }
 
 intnat miou_solo5_net_write(intnat fd, intnat off, intnat len, value vbstr) {

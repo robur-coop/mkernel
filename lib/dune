@@ -1,8 +1,8 @@
 (library
- (name miou_solo5)
- (public_name miou-solo5)
- (modules miou_solo5)
- (libraries ohex jsonm logs miou)
+ (name mkernel)
+ (public_name mkernel)
+ (modules mkernel)
+ (libraries hxd.core hxd.string bstr ohex jsonm logs miou)
  (flags
   (:standard -no-keep-locs))
  (wrapped false)
@@ -11,13 +11,13 @@
   (names stubs)))
 
 (rule
- (target miou_solo5.ml)
- (deps miou_solo5.solo5.ml miou_solo5.default.ml)
+ (target mkernel.ml)
+ (deps mkernel.unikraft.ml mkernel.solo5.ml mkernel.default.ml)
  (action
-  (copy miou_solo5.%{context_name}.ml %{target})))
+  (copy mkernel.%{context_name}.ml %{target})))
 
 (rule
  (target stubs.c)
- (deps stubs.solo5.c stubs.default.c)
+ (deps stubs.unikraft.c stubs.solo5.c stubs.default.c)
  (action
   (copy stubs.%{context_name}.c %{target})))
