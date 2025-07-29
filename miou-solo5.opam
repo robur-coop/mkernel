@@ -22,3 +22,7 @@ depends: [
   "jsonm"
   "ocaml-solo5"
 ]
+
+pin-depends: [
+  [ "miou.dev" "git+https://github.com/robur-coop/miou.git#a12934ddc0695c294f6dd2b50bb0d6bec764d164" ]
+]
