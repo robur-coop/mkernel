@@ -212,6 +212,15 @@ module Net = struct
 
   let read_bytes _t ?off:_ ?len:_ _buf = assert false
 
+  (* NOTE(dinosaure): here, we follow also what Solo5 provides. If we fail to
+     write an Ethernet frame, we should exit as Solo5 does when [solo5-hvt] is
+     not able to write anything into the TAP interface.
+
+     The logic behind Unikraft is bit more complex because it involves an
+     allocation ([malloc()] on the C side which can fails. We can easily say
+     that if we are not able to allocate on the C heap, we are probably doomed.
+     As Solo5 and [solo5-hvt], we just fail. *)
+
   let write_into t ~len ~fn =
     let netbuf = uk_get_tx_buffer t.netif len in
     if netbuf == -1 then
@@ -225,9 +234,8 @@ module Net = struct
       failwith "Mkernel.Net.write: impossible to write into the given netdev"
 
   let write_bigstring t ?(off = 0) ?len bstr =
-    let len =
-      match len with Some len -> len | None -> Bigarray.Array1.dim bstr - off
-    in
+    let default = Bigarray.Array1.dim bstr - off in
+    let len = Option.value ~default len in
     if len < 0 || off < 0 || off > Bigarray.Array1.dim bstr - len then
       invalid_arg "Miou_solo5.Net.write_bigstring: out of bounds";
     let bstr = Bigarray.Array1.sub bstr off len in

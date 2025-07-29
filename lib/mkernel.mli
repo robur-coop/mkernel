@@ -1,4 +1,4 @@
-(** A simple scheduler for Solo5 in OCaml.
+(** A simple scheduler for Solo5/Unikraft in OCaml.
 
     Solo5 has 5 hypercalls, 2 for reading and writing to a net device and 2 for
     reading and writing to a block device. The last hypercall stops the program.
@@ -16,7 +16,7 @@
 
     The user can read and write packets on such a device. However, you need to
     understand how reading and writing behave when developing an application as
-    a unikernel using Solo5.
+    a unikernel using Solo5/Unikraft.
 
     Writing a packet to the net device is direct and failsafe. In other words,
     we don't need to wait for anything to happen before writing to the net
@@ -27,18 +27,18 @@
 
     However, this is not the case when reading the net device. You might expect
     to read packages, but they might not be available at the time you try to
-    read them. [Miou_solo5] will make a first attempt at reading and if it
-    fails, the scheduler will "suspend" the reading task (and everything that
-    follows from it) to observe at another point in the life of unikernel
-    whether a packet has just arrived.
+    read them. [Mkernel] will make a first attempt at reading and if it fails,
+    the scheduler will "suspend" the reading task (and everything that follows
+    from it) to observe at another point in the life of unikernel whether a
+    packet has just arrived.
 
     Reading the net device is currently the only operation where suspension is
     necessary. In this way, the scheduler can take the opportunity to perform
     other tasks if reading failed in the first place. It is at the next
     iteration of the scheduler (after it has executed at least one other task)
-    that [Miou_solo5] will ask the tender if a packet has just arrived. If this
-    is the case, the scheduler will resume the read task, otherwise it will keep
-    it in a suspended state until the next iteration.
+    that [Mkernel] will ask the tender if a packet has just arrived. If this is
+    the case, the scheduler will resume the read task, otherwise it will keep it
+    in a suspended state until the next iteration.
 
     {2 Block devices.}
 
@@ -78,18 +78,17 @@
 
     {2 The scheduler.}
 
-    [Miou_solo5] is based on the Miou scheduler. Basically, this scheduler
-    allows the user to perform tasks in parallel. However, Solo5 does {b not}
-    have more than a single core. Parallel tasks are therefore {b unavailable}
-    \- in other words, the user should {b not} use [Miou.call] but only
-    [Miou.async].
+    [Mkernel] is based on the Miou scheduler. Basically, this scheduler allows
+    the user to perform tasks in parallel. However, Solo5 does {b not} have more
+    than a single core. Parallel tasks are therefore {b unavailable} \- in other
+    words, the user should {b not} use [Miou.call] but only [Miou.async].
 
     Finally, the scheduler works in such a way that scheduled read/write
     operations on a block device are relegated to the lowest priority tasks.
-    However, this does not mean that [Miou_solo5] is a scheduler that tries to
+    However, this does not mean that [Mkernel] is a scheduler that tries to
     complete as many tasks as possible before reaching an I/O operation (such as
     waiting for a packet — {!val:Net.read} — or reading/writing a block device).
-    Miou and [Miou_solo5] aim to increase the availability of an application: in
+    Miou and [Mkernel] aim to increase the availability of an application: in
     other words, as soon as there is an opportunity to execute a task other than
     the current one, Miou will take it.
 
@@ -151,7 +150,13 @@ module Net : sig
   (** Like {!val:write_bigstring}, but for [string]. *)
 
   val write_into : t -> len:int -> fn:(bigstring -> int) -> unit
-  (** TODO *)
+  (** Depending on the backend used, an underlying allocation may be performed
+      to write a new Ethernet frame. In the case of Unikraft, for example, we
+      need to allocate a buffer that will be added to Unikraft's internal queue
+      so that it can be written to the TAP interface. The same applies to Solo5
+      and its virtio support. In this specific case, [write_into] is more useful
+      than {!val:write_bigstring} because it prepares the allocation and lets
+      the user write to the allocated buffer via the given [fn] function. *)
 
   val connect : string -> (t * cfg, [> `Msg of string ]) result
 end
@@ -241,8 +246,8 @@ module Hook : sig
   type t
   (** Type of hooks.
 
-      Unlike Miou hooks, Miou_solo5's hooks only are executed when we perform
-      the [solo5_yield] hypercall. In other words, these hooks only execute when
+      Unlike Miou hooks, Mkernel's hooks only are executed when we perform the
+      [solo5_yield] hypercall. In other words, these hooks only execute when
       waiting for a new external event.
 
       Such a hook can be useful for certain computations because the hook is
@@ -262,7 +267,7 @@ module Hook : sig
 
   val remove : t -> unit
   (** [remove h] removes the hook [h]. If [h] does not belong to the internal
-      state of Miou_solo5, it raises an exception [Invalid_argument]. *)
+      state of Mkernel, it raises an exception [Invalid_argument]. *)
 end
 
 val clock_monotonic : unit -> int
@@ -304,16 +309,16 @@ val sleep : int -> unit
 
     {[
       let fs ~name =
-        let open Miou_solo5 in
+        let open Mkernel in
         map [ block name ] @@ fun blk () -> Fat32.of_solo5_block blk
     ]}
 
-    Miou_solo5 acquires these devices, performs the transformations requested by
+    Mkernel acquires these devices, performs the transformations requested by
     the user and returns the results:
 
     {[
       let () =
-        Miou_solo5.(run [ fs ~name:"disk.img" ]) @@ fun fat32 () ->
+        Mkernel.(run [ fs ~name:"disk.img" ]) @@ fun fat32 () ->
         let file_txt = Fat32.openfile fat32 "file.txt" in
         let finally () = Fat32.close file_txt in
         Fun.protect ~finally @@ fun () ->
@@ -325,10 +330,10 @@ val sleep : int -> unit
     “build-up” complex systems (such as a TCP/IP stack from a net-device, or a
     file system from a block-device using the {!val:map} function).
 
-    {2 Miou_solo5 and build-systems.}
+    {2 Mkernel and build-systems.}
 
-    Miou_solo5 can be compiled as a simple executable to run on the host system
-    or a unikernel with the Solo5 toolchain. As for the executable produced, the
+    Mkernel can be compiled as a simple executable to run on the host system or
+    a unikernel with the Solo5 toolchain. As for the executable produced, the
     latter produces a “manifest” (in JSON format) describing the devices
     required by the unikernel. This manifest is {b required} to compile the
     unikernel.
@@ -347,7 +352,7 @@ type 'a arg
 
     {[
       let () =
-        Miou_solo5.(run [ block "disk.img" ]) @@ fun _blk () ->
+        Mkernel.(run [ block "disk.img" ]) @@ fun _blk () ->
         print_endline "Hello World!"
     ]} *)
 type ('k, 'res) devices =
@@ -386,9 +391,9 @@ val map : 'f -> ('f, 'a) devices -> 'a arg
     device:
 
     {[
-      let tcpip ~name : Tcpip.t Miou_solo5.arg =
-        Miou_solo5.(map [ net name ])
-        @@ fun ((net : Miou_solo5.Net.t), cfg) () -> Tcpip.of_net_device net
+      let tcpip ~name : Tcpip.t Mkernel.arg =
+        Mkernel.(map [ net name ]) @@ fun ((net : Mkernel.Net.t), cfg) () ->
+        Tcpip.of_net_device net
     ]} *)
 
 val const : 'a -> 'a arg
