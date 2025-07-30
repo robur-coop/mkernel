@@ -21,6 +21,8 @@ depends: [
   "ohex"
   "jsonm"
   "ocaml-solo5"
+  "hxd" {with-test}
+  "fmt" {with-test}
 ]
 
 pin-depends: [
