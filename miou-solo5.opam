@@ -23,6 +23,7 @@ depends: [
   "ocaml-solo5"
   "hxd" {with-test}
   "fmt" {with-test}
+  "cachet" {with-test}
 ]
 
 pin-depends: [
