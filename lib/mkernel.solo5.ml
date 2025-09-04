@@ -44,6 +44,8 @@ let bigstring_blit_from_string src ~src_off dst ~dst_off ~len =
     bigstring_set_uint8 dst (dst_off + i) v
   done
 
+(* Unsafe part, C stubs. *)
+
 external miou_solo5_net_acquire : string -> bytes -> bytes -> bytes -> int
   = "unimplemented" "miou_solo5_net_acquire"
 [@@noalloc]
@@ -54,7 +56,7 @@ external miou_solo5_net_read :
   -> (int[@untagged])
   -> (int[@untagged])
   -> bytes
-  -> int = "unimplemented" "miou_solo5_net_read"
+  -> (int[@untagged]) = "unimplemented" "miou_solo5_net_read"
 [@@noalloc]
 
 external miou_solo5_net_write :
@@ -87,6 +89,8 @@ external miou_solo5_block_write :
   -> (int[@untagged]) = "unimplemented" "miou_solo5_block_write"
 [@@noalloc]
 
+(* End of the unsafe part. Come back to the OCaml world! *)
+
 external unsafe_get_int64_ne : bytes -> int -> int64 = "%caml_bytes_get64u"
 
 let invalid_argf fmt = Format.kasprintf invalid_arg fmt
@@ -114,38 +118,38 @@ module Block_direct = struct
   let unsafe_read t ~src_off ?(dst_off = 0) dst =
     match miou_solo5_block_read t.handle ~src_off ~dst_off t.pagesize dst with
     | 0 -> ()
-    | 2 -> invalid_arg "Miou_solo5.Block.read"
+    | 2 -> invalid_arg "Mkernel.Block.read"
     | _ -> assert false (* AGAIN | UNSPEC *)
 
   let atomic_read t ~src_off ?(dst_off = 0) dst =
     if dst_off < 0 || dst_off > Bigarray.Array1.dim dst - t.pagesize then
       invalid_argf
-        "Miou_solo5.Block.atomic_read: [dst_off] (%d) or length (%d) of the \
+        "Mkernel.Block.atomic_read: [dst_off] (%d) or length (%d) of the \
          destination bigarray are wrong."
         dst_off (Bigarray.Array1.dim dst);
     if src_off land (t.pagesize - 1) != 0 then
       invalid_argf
-        "Miou_solo5.Block.atomic_read: [src_off] must be aligned to the \
-         pagesize (%d)"
+        "Mkernel.Block.atomic_read: [src_off] must be aligned to the pagesize \
+         (%d)"
         t.pagesize;
     unsafe_read t ~src_off ~dst_off dst
 
   let unsafe_write t ?(src_off = 0) ~dst_off src =
     match miou_solo5_block_write t.handle ~src_off ~dst_off t.pagesize src with
     | 0 -> ()
-    | 2 -> invalid_arg "Miou_solo5.Block.write"
+    | 2 -> invalid_arg "Mkernel.Block.write"
     | _ -> assert false (* AGAIN | UNSPEC *)
 
   let atomic_write t ?(src_off = 0) ~dst_off src =
     if src_off < 0 || src_off > Bigarray.Array1.dim src - t.pagesize then
       invalid_argf
-        "Miou_solo5.Block.atomic_write: [src_off] (%d) or length (%d) of the \
+        "Mkernel.Block.atomic_write: [src_off] (%d) or length (%d) of the \
          destination bigarray are wrong."
         dst_off (Bigarray.Array1.dim src);
     if dst_off land (t.pagesize - 1) != 0 then
       invalid_argf
-        "Miou_solo5.Block.atomic_write: [dst_off] must be aligned to the \
-         pagesize (%d)"
+        "Mkernel.Block.atomic_write: [dst_off] must be aligned to the pagesize \
+         (%d)"
         t.pagesize;
     unsafe_write t ~src_off ~dst_off src
 end
@@ -245,7 +249,7 @@ module Net = struct
       match result with
       | 0 -> Int64.to_int (unsafe_get_int64_ne read_size 0)
       | 1 -> blocking_read t; go read_size
-      | 2 -> invalid_arg "Miou_solo5.Net.read"
+      | 2 -> invalid_arg "Mkernel.Net.read"
       | _ -> assert false (* UNSPEC *)
     in
     go (Bytes.make 8 '\000')
@@ -255,7 +259,7 @@ module Net = struct
       match len with Some len -> len | None -> Bigarray.Array1.dim bstr - off
     in
     if len < 0 || off < 0 || off > Bigarray.Array1.dim bstr - len then
-      invalid_arg "Miou_solo5.Net.read_bigstring: out of bounds";
+      invalid_arg "Mkernel.Net.read_bigstring: out of bounds";
     read t ~off ~len bstr
 
   let read_bytes =
@@ -279,7 +283,7 @@ module Net = struct
               if len > 0 then go (dst_off + len) (dst_len - len)
               else dst_off - off
           | 1 -> blocking_read t; go dst_off dst_len
-          | 2 -> invalid_arg "Miou_solo5.Net.read"
+          | 2 -> invalid_arg "Mkernel.Net.read"
           | _ -> assert false (* UNSPEC *)
         end
         else dst_off - off
@@ -288,13 +292,13 @@ module Net = struct
         match len with Some len -> len | None -> Bytes.length buf - off
       in
       if len < 0 || off < 0 || off > Bytes.length buf - len then
-        invalid_arg "Miou_solo5.Net.read_bytes: out of bounds";
+        invalid_arg "Mkernel.Net.read_bytes: out of bounds";
       go off len
 
   let write t ~off ~len bstr =
     match miou_solo5_net_write t off len bstr with
     | 0 -> ()
-    | 2 -> invalid_arg "Miou_solo5.Net.write"
+    | 2 -> invalid_arg "Mkernel.Net.write"
     | _ -> assert false (* AGAIN | UNSPEC *)
 
   let write_bigstring t ?(off = 0) ?len bstr =
@@ -302,8 +306,13 @@ module Net = struct
       match len with Some len -> len | None -> Bigarray.Array1.dim bstr - off
     in
     if len < 0 || off < 0 || off > Bigarray.Array1.dim bstr - len then
-      invalid_arg "Miou_solo5.Net.write_bigstring: out of bounds";
+      invalid_arg "Mkernel.Net.write_bigstring: out of bounds";
     write t ~off ~len bstr
+
+  let write_into t ~len ~fn =
+    let bstr = Bigarray.Array1.create Bigarray.char Bigarray.c_layout len in
+    let len = fn bstr in
+    write_bigstring t ~len bstr
 
   let write_string =
     let bstr = Bigarray.(Array1.create char c_layout 0x7ff) in
@@ -321,7 +330,7 @@ module Net = struct
         match len with Some len -> len | None -> String.length str - off
       in
       if len < 0 || off < 0 || off > String.length str - len then
-        invalid_arg "Miou_solo5.Net.write_string: out of bounds";
+        invalid_arg "Mkernel.Net.write_string: out of bounds";
       go off len
 end
 
@@ -333,24 +342,24 @@ module Block = struct
       invalid_argf "TODO";
     if src_off land (t.pagesize - 1) != 0 then
       invalid_argf
-        "Miou_solo5.Block.read: [off] must be aligned to the pagesize (%d)"
+        "Mkernel.Block.read: [off] must be aligned to the pagesize (%d)"
         t.pagesize;
     let syscall = Miou.syscall () in
     let args = { t; bstr; src_off; dst_off; syscall; cancelled= false } in
-    Queue.push (Rd args) domain.blocks;
-    Miou.suspend syscall
+    let fn () = Queue.push (Rd args) domain.blocks in
+    Miou.suspend ~fn syscall
 
   let write t ?(src_off = 0) ~dst_off bstr =
     if src_off < 0 || src_off > Bigarray.Array1.dim bstr - t.pagesize then
       invalid_arg "TODO";
     if dst_off land (t.pagesize - 1) != 0 then
       invalid_argf
-        "Miou_solo5.Block.write: [off] must be aligned to the pagesize (%d)"
+        "Mkernel.Block.write: [off] must be aligned to the pagesize (%d)"
         t.pagesize;
     let syscall = Miou.syscall () in
     let args = { t; bstr; src_off; dst_off; syscall; cancelled= false } in
-    Queue.push (Wr args) domain.blocks;
-    Miou.suspend syscall
+    let fn () = Queue.push (Wr args) domain.blocks in
+    Miou.suspend ~fn syscall
 end
 
 module Hook = struct
@@ -378,7 +387,7 @@ let sleep until =
   Heapq.insert elt domain.sleepers;
   Miou.suspend syscall
 
-(* poll part of Miou_solo5 *)
+(* poll part of Mkernel *)
 
 let rec sleeper () =
   match Heapq.find_min_exn domain.sleepers with

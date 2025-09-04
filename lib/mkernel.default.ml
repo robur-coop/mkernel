@@ -64,6 +64,7 @@ module Net = struct
   let read_bytes _t ?off:_ ?len:_ _buf = assert false
   let write_bigstring _t ?off:_ ?len:_ _bstr = assert false
   let write_string _t ?off:_ ?len:_ _str = assert false
+  let write_into _t ~len:_ ~fn:_ = assert false
 end
 
 module Block = struct

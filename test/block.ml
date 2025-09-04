@@ -1,34 +1,35 @@
 let cachet_of_block ~cachesize blk () =
   let map blk ~pos len =
     let bstr = Bigarray.(Array1.create char c_layout len) in
-    Miou_solo5.Block.read blk ~src_off:pos bstr;
+    Mkernel.Block.read blk ~src_off:pos bstr;
     bstr
   in
-  let pagesize = Miou_solo5.Block.pagesize blk in
+  let pagesize = Mkernel.Block.pagesize blk in
   Cachet.make ~cachesize ~pagesize ~map blk
 
 let cachet ~cachesize name =
-  let open Miou_solo5 in
+  let open Mkernel in
   map (cachet_of_block ~cachesize) [ block name ]
 
-let run cachesize =
-  Miou_solo5.(run [ cachet ~cachesize "simple" ]) @@ fun blk () ->
+let () =
+  Mkernel.(run [ cachet ~cachesize:512 "0" ]) @@ fun blk () ->
   let pagesize = Cachet.pagesize blk in
   let prm =
     Miou.async @@ fun () ->
     let bstr = Bigarray.(Array1.create char c_layout (2 * pagesize)) in
     let blk = Cachet.fd blk in
-    Miou_solo5.Block.atomic_read blk ~src_off:0 ~dst_off:pagesize bstr;
+    Mkernel.Block.atomic_read blk ~src_off:0 ~dst_off:pagesize bstr;
     let bstr = Cachet.Bstr.of_bigstring bstr in
     let str = Cachet.Bstr.sub_string ~off:pagesize ~len:pagesize bstr in
     let hash = Digest.string str in
     Fmt.pr "%08x: %s\n%!" 0 (Digest.to_hex hash)
   in
+  Miou.await_exn prm;
   let str = Cachet.get_string blk pagesize ~len:pagesize in
   let hash = Digest.string str in
-  Fmt.pr "%08x: %s\n%!" pagesize (Digest.to_hex hash);
-  Miou.await_exn prm
+  Fmt.pr "%08x: %s\n%!" pagesize (Digest.to_hex hash)
 
+(*
 open Cmdliner
 
 let cachesize =
@@ -47,3 +48,4 @@ let cmd =
   Cmd.v info term
 
 let () = Cmd.(exit @@ eval cmd)
+*)

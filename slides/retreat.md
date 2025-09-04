@@ -222,10 +222,10 @@ The advantage of this type of task management lies in the ambition to implement 
 let _1s = 1_000_000_000
 
 let () =
-  Miou_solo5.run [] @@ fun () ->
+  Mkernel.run [] @@ fun () ->
   let prm = Miou.async @@ fun () ->
     print_endline "Hello" in
-  Miou_solo5.sleep _1s;
+  Mkernel.sleep _1s;
   print_endline "World";
   Miou.await_exn prm
 ```
@@ -257,10 +257,10 @@ Solo5: solo5_exit(0) called
 
 ```ocaml
 let () =
-  Miou_solo5.(run [ block "file" ]) @@ fun blk () ->
-  let pagesize = Miou_solo5.Block.pagesize blk in
+  Mkernel.(run [ block "file" ]) @@ fun blk () ->
+  let pagesize = Mkernel.Block.pagesize blk in
   let bstr = Bstr.create pagesize in
-  Miou_solo5.Block.read blk ~off:0 bstr;
+  Mkernel.Block.read blk ~off:0 bstr;
   Fmt.pr "@[<hov>%a@]\n" (Hxd_string.pp Hxd.default) (Bstr.to_string bstr)
 ```
 
@@ -394,7 +394,7 @@ However, `ocaml-solo5` has one useful feature: it does not change the way OCaml 
 
 ```ocaml
 let run foo bar =
-  Miou_solo5.(run []) @@ fun () ->
+  Mkernel.(run []) @@ fun () ->
   Fmt.pr "foo: %d\n%!" foo;
   Fmt.pr "bar: %S\n%!" bar
 
@@ -449,7 +449,7 @@ let echo_handler flow =
   go
 
 let run cidr gateway =
-  Miou_solo5.(run [ tcpv4 ~name:"service" ?gateway cidr ]) @@ fun (daemon, tcpv4) () ->
+  Mkernel.(run [ tcpv4 ~name:"service" ?gateway cidr ]) @@ fun (daemon, tcpv4) () ->
   let rng = Mirage_crypto_rng_miou_solo5.initialize (module Mirage_crypto_rng.Fortuna) in
   let finally () =
     Mirage_crypto_rng_miou_solo5.kill rng;

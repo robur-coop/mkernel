@@ -21,11 +21,13 @@ depends: [
   "ohex"
   "jsonm"
   "ocaml-solo5"
+  "ocaml-unikraft"
   "hxd" {with-test}
   "fmt" {with-test}
   "cachet" {with-test}
 ]
 
 pin-depends: [
-  [ "miou.dev" "git+https://github.com/robur-coop/miou.git#a12934ddc0695c294f6dd2b50bb0d6bec764d164" ]
+  [ "ocaml-unikraft.1.0.0" "git+https://github.com/mirage/ocaml-unikraft.git#9becd4cae4612f5250753eae896b3e173108ab0f" ]
+  [ "ocaml-unikraft-backend-qemu.0.18.0" "git+https://github.com/mirage/ocaml-unikraft.git#9becd4cae4612f5250753eae896b3e173108ab0f" ]
 ]
