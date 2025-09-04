@@ -1,52 +1,126 @@
 (** A simple scheduler for Solo5/Unikraft in OCaml.
 
-    Solo5 has 5 hypercalls, 2 for reading and writing to a net device and 2 for
-    reading and writing to a block device. The last hypercall stops the program.
-    This library is an OCaml scheduler (based on Miou) that allows you to
-    interact with these devices. However, the behaviour of these hypercalls
-    needs to be specified in order to understand how to use them properly when
-    it comes to creating a unikernel in OCaml.
+    A unikernel is a fully-fledged operating system that essentially wants to be
+    virtualised into a host system such as Linux (KVM) or FreeBSD (Bhyve). In
+    this sense, a unikernel's interactions with the {i outside world} (with
+    other systems) via {i components} are standardised through two types of
+    devices:
+    - a net interface that emulates an Ethernet port
+    - a block interface that emulates a hard drive
 
-    {2 Net devices.}
+    These interactions respond to events transmitted by the host system, which
+    retains exclusive direct access to physical components, retrieved by a
+    {i tender} that runs in the host system's user space and is then
+    retransmitted to the unikernel running in its own space.
 
-    A net device is a TAP interface connected between your unikernel and the
-    network of your host system. It is through this device that you can
+    The information transmitted between the unikernel and the tender is called a
+    {i hypercall}, and the information transmitted between the tender and the
+    host system is called a {i syscall}. In other words, a {i hypercall}
+    necessarily involves one or more {i syscalls}, and the transmission of the
+    result necessarily passes through the tender (which serves as a bridge
+    between the unikernel and the host system).
+
+    Since these events originate from the {i outside world}, they can occur at
+    any time. It is therefore necessary to be able to manage these events
+    {i asynchronously} so as not to block the reception of a particular event
+    and to be able to do {i something else} while waiting for certain events.
+
+    This library therefore offers two essential features:
+    - the ability to emit hypercalls as a virtualised unikernel
+    - the ability to launch and manage tasks asynchronously into our unikernel:
+      in other words, a scheduler
+
+    {2 Scheduler.}
+
+    A unikernel has exclusive use of a CPU and a memory area separate from the
+    host system. This CPU simply executes the unikernel code. To date, there is
+    no support for multiple cores. However, a scheduler is certainly needed in
+    order to be able to execute multiple tasks {i at the same time}.
+
+    As such, this library is based on the Miou scheduler. It is a small
+    scheduler that uses the effects of OCaml 5 and allows tasks to be launched
+    and managed asynchronously. Miou's objective is focused on the development
+    of applications that are services (such as a web server). The task
+    management policy is therefore designed so that the unikernel can handle as
+    many hypercalls as possible. This contrasts with a scheduler that would
+    optimise task scheduling in order to complete a calculation as quickly as
+    possible (in other words, a CPU-bound application). Miou is therefore said
+    to be a scheduler for I/O-bound applications.
+
+    For more information about Miou and its task management and API, please read
+    the {{:https://docs.osau.re/}project documentation} and tutorial available
+    {{:https://robur-coop.github.io/miou/}here}.
+
+    In order to launch the Miou scheduler and be able to launch and manage
+    asynchronous tasks, the user must define a first entry point that must
+    necessarily call {!val:run}:
+
+    {[
+      let () =
+        Mkernel.(run []) @@ fun () ->
+        let prm = Miou.async @@ fun () -> print_endline "Hello World!" in
+        Mkernel.sleep 1_000_000_000;
+        Miou.await_exn prm
+    ]}
+
+    All functions available through the Miou module work when implementing a
+    unikernel {b except} [Miou.call], which wants to launch a task in parallel.
+    [Miou.call] raises an exception because a unikernel only has one CPU.
+
+    {2 Hypercalls.}
+
+    Hypercalls are the only way for the unikernel to communicate with the
+    outside world. A hypercall is a signal that we would like to obtain
+    information from a specific external resource (such as a network interface
+    or a block interface). This library offers several functions for emitting
+    these hypercalls, which are then handled by the {i tender} and then by the
+    host system.
+
+    These hypercalls are standardised in a certain way and concern interactions
+    with two types of resources:
+    - the network interface, which emulates an Ethernet port
+    - the block interface, which emulates a hard drive
+
+    {3 Net interfaces.}
+
+    A net interface is a TAP interface connected between your unikernel and the
+    network of your host system. It is through this interface that you can
     communicate with your system's network and receive packets from it. The
-    TCP/IP stack is also built from this device.
+    TCP/IP stack is also built from this interface.
 
-    The user can read and write packets on such a device. However, you need to
-    understand how reading and writing behave when developing an application as
-    a unikernel using Solo5/Unikraft.
+    The user can read and write packets on such an interface. However, you need
+    to understand how reading and writing behave when developing an application
+    as a unikernel using Solo5/Unikraft.
 
-    Writing a packet to the net device is direct and failsafe. In other words,
-    we don't need to wait for anything to happen before writing to the net
-    device (if an error occurs on your host system, the Solo5 tender will fail —
+    Writing a packet to the net interface is direct and failsafe. In other
+    words, we don't need to wait for anything to happen before writing to the
+    net device (if an error occurs on your host system, the tender will fail —
     and by extension, so will your unikernel). So, from the scheduler's point of
     view, writing to the net device is atomic and is never suspended by the
     scheduler in order to have the opportunity to execute other tasks.
 
-    However, this is not the case when reading the net device. You might expect
-    to read packages, but they might not be available at the time you try to
-    read them. [Mkernel] will make a first attempt at reading and if it fails,
-    the scheduler will "suspend" the reading task (and everything that follows
-    from it) to observe at another point in the life of unikernel whether a
-    packet has just arrived.
+    However, this is not the case when reading on the net interface. You might
+    expect to read packets, but they might not be available at the time you try
+    to read them. [Mkernel] will make a first attempt at reading and if it
+    fails, the scheduler will "suspend" the reading task (and everything that
+    follows from it) to observe at another point in the life of unikernel
+    whether a packet has just arrived.
 
-    Reading the net device is currently the only operation where suspension is
-    necessary. In this way, the scheduler can take the opportunity to perform
-    other tasks if reading failed in the first place. It is at the next
-    iteration of the scheduler (after it has executed at least one other task)
-    that [Mkernel] will ask the tender if a packet has just arrived. If this is
-    the case, the scheduler will resume the read task, otherwise it will keep it
-    in a suspended state until the next iteration.
+    Reading on the net interface is currently the only operation where
+    suspension is necessary. In this way, the scheduler can take the opportunity
+    to perform other tasks if reading failed in the first place. It is at the
+    next iteration of the scheduler (after it has executed at least one other
+    task) that [Mkernel] will ask the tender if a packet has just arrived. If
+    this is the case, the scheduler will resume the reading task, otherwise it
+    will keep it in a suspended state until the next opportunity.
 
-    {2 Block devices.}
+    {3 Block interfaces.}
 
-    Block devices are different in that there is no expectation of whether or
-    not there will be data. A block device can be seen as content to which the
-    user has one access per page (generally 4096 bytes). It can be read and
+    Block interfaces are different in that there is no expectation of whether or
+    not there will be data. A block interface can be seen as content to which
+    the user has one access per page (generally 4096 bytes). It can be read and
     written to. However, the read and write operation can take quite a long time
-    \- depending on the file system and your hardware on the host system.
+    — depending on the file system and your hardware on the host system.
 
     There are therefore two types of read/write. An atomic read/write and a
     scheduled read/write.
@@ -56,8 +130,7 @@
     currently being performed. Nothing else can be done until this operation has
     finished. It should be noted that once the operation has finished, the
     scheduler does not take the opportunity to do another task. It continues
-    with what needs to be done after the read/write as you have implemented in
-    OCaml.
+    with what needs to be done after the read/write as you have implemented.
 
     This approach is interesting when you want to have certain invariants (in
     particular the state of the memory) that other tasks cannot alter despite
@@ -73,28 +146,8 @@
     later date without the current time at which the operation is carried out
     having any effect on the result. For example, scheduling reads on a block
     device that is read-only is probably more interesting than using atomic
-    reads (whether the read is done at time [T0] or [T1], the result remains the
-    same).
-
-    {2 The scheduler.}
-
-    [Mkernel] is based on the Miou scheduler. Basically, this scheduler allows
-    the user to perform tasks in parallel. However, Solo5 does {b not} have more
-    than a single core. Parallel tasks are therefore {b unavailable} \- in other
-    words, the user should {b not} use [Miou.call] but only [Miou.async].
-
-    Finally, the scheduler works in such a way that scheduled read/write
-    operations on a block device are relegated to the lowest priority tasks.
-    However, this does not mean that [Mkernel] is a scheduler that tries to
-    complete as many tasks as possible before reaching an I/O operation (such as
-    waiting for a packet — {!val:Net.read} — or reading/writing a block device).
-    Miou and [Mkernel] aim to increase the availability of an application: in
-    other words, as soon as there is an opportunity to execute a task other than
-    the current one, Miou will take it.
-
-    In this case, all the operations (except atomic ones) present in this module
-    give Miou the opportunity to suspend the current task and execute another
-    task. *)
+    reads (whether the read is done at time [T0] or [T1], the result remains
+    exactly the same). *)
 
 type bigstring =
   (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
@@ -154,11 +207,22 @@ module Net : sig
       to write a new Ethernet frame. In the case of Unikraft, for example, we
       need to allocate a buffer that will be added to Unikraft's internal queue
       so that it can be written to the TAP interface. The same applies to Solo5
-      and its virtio support. In this specific case, [write_into] is more useful
-      than {!val:write_bigstring} because it prepares the allocation and lets
-      the user write to the allocated buffer via the given [fn] function. *)
+      and its virtio support.
+
+      In this specific case, [write_into] is more useful than
+      {!val:write_bigstring} because it prepares the allocation and lets the
+      user write to the allocated buffer via the given [fn] function. *)
 
   val connect : string -> (t * cfg, [> `Msg of string ]) result
+  (** [connect name] returns a net device according to the given [name]. It must
+      correspond to the name given as an argument to the Solo5 tender. For
+      example, if the invocation of our unikernel with Solo5 corresponds to:
+
+      {[
+        $ solo5-hvt --net:service=tap0 -- unikernel.hvt
+      ]}
+
+      The name of the block would be: ["service"]. *)
 end
 
 module Block : sig
@@ -233,7 +297,7 @@ module Block : sig
   val connect : string -> (t, [> `Msg of string ]) result
   (** [connect name] returns a block device according to the given [name]. It
       must correspond to the name given as an argument to the Solo5 tender. For
-      example, if the invocation of our unikernel corresponds to:
+      example, if the invocation of our unikernel with Solo5 corresponds to:
 
       {[
         $ solo5-hvt --block:disk=file.txt -- unikernel.hvt
@@ -246,8 +310,8 @@ module Hook : sig
   type t
   (** Type of hooks.
 
-      Unlike Miou hooks, Mkernel's hooks only are executed when we perform the
-      [solo5_yield] hypercall. In other words, these hooks only execute when
+      {b Unlike} Miou hooks, Mkernel's hooks only are executed when we perform
+      the [yield] hypercall. In other words, these hooks only execute when
       waiting for a new external event.
 
       Such a hook can be useful for certain computations because the hook is
@@ -328,21 +392,7 @@ val sleep : int -> unit
 
     Finally, it executes the code given by the user. The user can therefore
     “build-up” complex systems (such as a TCP/IP stack from a net-device, or a
-    file system from a block-device using the {!val:map} function).
-
-    {2 Mkernel and build-systems.}
-
-    Mkernel can be compiled as a simple executable to run on the host system or
-    a unikernel with the Solo5 toolchain. As for the executable produced, the
-    latter produces a “manifest” (in JSON format) describing the devices
-    required by the unikernel. This manifest is {b required} to compile the
-    unikernel.
-
-    It is therefore possible to:
-    + produce the executable
-    + generate the [manifest.json] via the produced executable
-    + generate the unikernel using the same code that generated the
-      [manifest.json], but with the Solo5 toolchain. *)
+    file system from a block-device using the {!val:map} function). *)
 
 type 'a arg
 (** ['a arg] knows the type of an argument given to {!val:run}. *)
@@ -361,8 +411,9 @@ type ('k, 'res) devices =
 
 val net : string -> (Net.t * Net.cfg) arg
 (** [net name] is a net device which can be used by the {!module:Net} module.
-    The given name must correspond to the argument given to the Solo5 tender.
-    For example, if the invocation of our unikernel corresponds to:
+    The given name must correspond to the argument given to the Solo5 tender or
+    the qemu tender. For example, if the invocation of our unikernel with Solo5
+    corresponds to:
 
     {[
       $ solo5-hvt --net:service=tap0 -- unikernel.hvt
@@ -370,14 +421,15 @@ val net : string -> (Net.t * Net.cfg) arg
 
     The name of the block would be: ["service"].
 
-    The user can specify the MAC address of the virtual interfac the user wishes
-    to use. Otherwise, Solo5 will choose a random one. It is given via the
-    {!type:Net.cfg} value. *)
+    The user can specify the MAC address of the virtual interface the user
+    wishes to use. Otherwise, Solo5 will choose a random one. It is given via
+    the {!type:Net.cfg} value. *)
 
 val block : string -> Block.t arg
 (** [block name] is a block device which can be used by the {!module:Block}
     module. The given name must correspond to the argument given to the Solo5
-    tender. For example, if the invocation of our unikernel corresponds to:
+    tender or the qemu tender. For example, if the invocation of our unikernel
+    with Solo5 corresponds to:
 
     {[
       $ solo5-hvt --block:disk=file.txt -- unikernel.hvt

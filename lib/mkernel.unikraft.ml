@@ -59,71 +59,76 @@ external uk_yield : (int[@untagged]) -> bytes -> unit
   = "unimplemented" "uk_yield"
 [@@noalloc]
 
+type block = int (* pointer *)
+type token = int
+
+external uk_block_init : int -> (block, string) result = "uk_block_init"
+external uk_block_info : block -> bool * int * int64 = "uk_block_info"
+
+external uk_block_async_read :
+     block
+  -> start:int64
+  -> size:int
+  -> bigstring
+  -> off:int
+  -> (token, string) result = "uk_block_async_read"
+
+external uk_block_sync_read :
+  block -> start:int64 -> size:int -> bigstring -> off:int -> bool
+  = "uk_block_read"
+
+external uk_block_async_write :
+     block
+  -> start:int64
+  -> size:int
+  -> bigstring
+  -> off:int
+  -> (token, string) result = "uk_block_async_write"
+
+external uk_block_sync_write :
+  block -> start:int64 -> size:int -> bigstring -> off:int -> bool
+  = "uk_block_write"
+
+external uk_complete_io : block -> token -> bool = "uk_complete_io"
+external uk_max_tokens : unit -> int = "uk_max_tokens"
+external uk_max_sectors_per_req : block -> int = "uk_max_sectors_per_req"
+
 (* End of the unsafe part. Come back to the OCaml world! *)
 
 external unsafe_get_int64_ne : bytes -> int -> int64 = "%caml_bytes_get64u"
 
 let failwithf fmt = Format.kasprintf failwith fmt
 let error_msgf fmt = Format.kasprintf (fun msg -> Error (`Msg msg)) fmt
+let invalid_argf fmt = Format.kasprintf invalid_arg fmt
 
-(*
-module Block_direct = struct
-  type t = { handle: int; pagesize: int }
+module Sem = struct
+  type t = {
+      mutable value: int
+    ; mutable wakeups: int
+    ; mutex: Miou.Mutex.t
+    ; condition: Miou.Condition.t
+  }
 
-  let pagesize { pagesize; _ } = pagesize
+  let create value =
+    {
+      value
+    ; wakeups= 0
+    ; mutex= Miou.Mutex.create ()
+    ; condition= Miou.Condition.create ()
+    }
 
-  let connect name =
-    let handle = Bytes.make 8 '\000' in
-    let _len = Bytes.make 8 '\000' in
-    let pagesize = Bytes.make 8 '\000' in
-    match miou_solo5_block_acquire name handle _len pagesize with
-    | 0 ->
-        let handle = Int64.to_int (Bytes.get_int64_ne handle 0) in
-        let _len = Int64.to_int (Bytes.get_int64_ne _len 0) in
-        let pagesize = Int64.to_int (Bytes.get_int64_ne pagesize 0) in
-        Ok { handle; pagesize }
-    | errno ->
-        error_msgf "Impossible to connect the block-device %s (%d)" name errno
+  let acquire t =
+    Miou.Mutex.protect t.mutex @@ fun () ->
+    while t.value <= 0 do
+      Miou.Condition.wait t.condition t.mutex
+    done;
+    t.value <- t.value - 1
 
-  let unsafe_read t ~src_off ?(dst_off = 0) dst =
-    match miou_solo5_block_read t.handle ~src_off ~dst_off t.pagesize dst with
-    | 0 -> ()
-    | 2 -> invalid_arg "Miou_solo5.Block.read"
-    | _ -> assert false (* AGAIN | UNSPEC *)
-
-  let atomic_read t ~src_off ?(dst_off = 0) dst =
-    if dst_off < 0 || dst_off > Bigarray.Array1.dim dst - t.pagesize then
-      invalid_argf
-        "Miou_solo5.Block.atomic_read: [dst_off] (%d) or length (%d) of the \
-         destination bigarray are wrong."
-        dst_off (Bigarray.Array1.dim dst);
-    if src_off land (t.pagesize - 1) != 0 then
-      invalid_argf
-        "Miou_solo5.Block.atomic_read: [src_off] must be aligned to the \
-         pagesize (%d)"
-        t.pagesize;
-    unsafe_read t ~src_off ~dst_off dst
-
-  let unsafe_write t ?(src_off = 0) ~dst_off src =
-    match miou_solo5_block_write t.handle ~src_off ~dst_off t.pagesize src with
-    | 0 -> ()
-    | 2 -> invalid_arg "Miou_solo5.Block.write"
-    | _ -> assert false (* AGAIN | UNSPEC *)
-
-  let atomic_write t ?(src_off = 0) ~dst_off src =
-    if src_off < 0 || src_off > Bigarray.Array1.dim src - t.pagesize then
-      invalid_argf
-        "Miou_solo5.Block.atomic_write: [src_off] (%d) or length (%d) of the \
-         destination bigarray are wrong."
-        dst_off (Bigarray.Array1.dim src);
-    if dst_off land (t.pagesize - 1) != 0 then
-      invalid_argf
-        "Miou_solo5.Block.atomic_write: [dst_off] must be aligned to the \
-         pagesize (%d)"
-        t.pagesize;
-    unsafe_write t ~src_off ~dst_off src
+  let release t =
+    Miou.Mutex.protect t.mutex @@ fun () ->
+    t.value <- t.value + 1;
+    Miou.Condition.signal t.condition
 end
-*)
 
 module Handles = struct
   type 'a t = { mutable contents: (int * 'a) list }
@@ -162,9 +167,142 @@ module Heapq = Miou.Pqueue.Make (struct
   let compare { time= a; _ } { time= b; _ } = Int.compare a b
 end)
 
-type domain = { netdevs: Miou.syscall list Handles.t; sleepers: Heapq.t }
+type domain = {
+    netdevs: Miou.syscall list Handles.t
+  ; blkdevs: Miou.syscall list Handles.t
+  ; sleepers: Heapq.t
+}
 
-let domain = { netdevs= Handles.create 0x100; sleepers= Heapq.create () }
+let domain =
+  {
+    netdevs= Handles.create 0x100
+  ; blkdevs= Handles.create 0x100
+  ; sleepers= Heapq.create ()
+  }
+
+let blocking_block_io uid tid =
+  let sid = (uid lsl 6) lor tid in
+  let syscall = Miou.syscall () in
+  let fn () = Handles.append domain.blkdevs sid syscall in
+  Miou.suspend ~fn syscall
+
+module Block = struct
+  type t = {
+      handle: block
+    ; uid: int
+    ; read_only: bool
+    ; pagesize: int
+    ; number_of_pages: int64
+    ; max_pages_per_req: int
+    ; sem: Sem.t
+  }
+
+  let pagesize { pagesize; _ } = 1 lsl pagesize
+
+  let unsafe_ctz n =
+    let t = ref 1 in
+    let r = ref 0 in
+    while n land !t = 0 do
+      t := !t lsl 1;
+      incr r
+    done;
+    !r
+
+  let connect name =
+    try
+      let uid = int_of_string name in
+      match uk_block_init uid with
+      | Ok handle ->
+          let read_only, pagesize, number_of_pages = uk_block_info handle in
+          let pagesize = unsafe_ctz pagesize in
+          (* NOTE(dinosaure): it seems that [uk_max_sectors_per_req] returns a
+             value which is computed only by [uk_block_init]. At this stage, it
+             seems to be a constant and we can bring it into our [t] record. *)
+          let max_pages_per_req = uk_max_sectors_per_req handle in
+          let sem = Sem.create (uk_max_tokens ()) in
+          Ok
+            {
+              handle
+            ; uid
+            ; read_only
+            ; pagesize
+            ; number_of_pages
+            ; max_pages_per_req
+            ; sem
+            }
+      | Error msg -> Error (`Msg msg)
+    with _ -> error_msgf "Invalid blockdev interface (must be a number)"
+
+  let async_unsafe ~fn t ~src_off ~dst_off dst =
+    Sem.acquire t.sem;
+    let size = Bigarray.Array1.dim dst - dst_off in
+    let size = Int.min (t.max_pages_per_req * (1 lsl t.pagesize)) size in
+    let size = size lsr t.pagesize in
+    (* TODO(dinosaure): we should directly use an [int]. *)
+    let start = Int64.of_int (src_off lsr t.pagesize) in
+    match fn t.handle ~start ~size dst ~off:dst_off with
+    | Ok tid ->
+        blocking_block_io t.uid tid;
+        let ok = uk_complete_io t.handle tid in
+        Sem.release t.sem;
+        if not ok then
+          failwithf "Mkernel.Block.operation: operation not completed"
+    | Error msg ->
+        Sem.release t.sem;
+        failwithf "Mkernel.Block.operation: %s" msg
+
+  (* TODO(dinosaure): synchronous operations on unikraft is not yet available. *)
+  let unsafe ~fn t ~src_off ~dst_off dst =
+    let size = Bigarray.Array1.dim dst - dst_off in
+    let size = Int.min (t.max_pages_per_req * t.pagesize) size in
+    let size = size lsr t.pagesize in
+    (* TODO(dinosaure): we should directly use an [int]. *)
+    let start = Int64.of_int (src_off lsr t.pagesize) in
+    let ok = fn t.handle ~start ~size dst ~off:dst_off in
+    if not ok then failwithf "Mkernel.Block.operation: error"
+
+  let _read kind t ~src_off ?(dst_off = 0) dst =
+    if dst_off < 0 || dst_off > Bigarray.Array1.dim dst - (1 lsl t.pagesize)
+    then
+      invalid_argf
+        "Mkernel.Block.read: [dst_off] (%d) or length (%d) of the destination \
+         bigarray are wrong."
+        dst_off (Bigarray.Array1.dim dst);
+    if src_off land ((1 lsl t.pagesize) - 1) != 0 then
+      invalid_argf
+        "Mkernel.Block.read: [src_off] must be aligned to the pagesize (%d)"
+        (1 lsl t.pagesize);
+    match kind with
+    | `Sync -> unsafe ~fn:uk_block_sync_read t ~src_off ~dst_off dst
+    | `Async -> async_unsafe ~fn:uk_block_async_read t ~src_off ~dst_off dst
+
+  let _write kind t ?(src_off = 0) ~dst_off src =
+    if src_off < 0 || src_off > Bigarray.Array1.dim src - (1 lsl t.pagesize)
+    then
+      invalid_argf
+        "Mkernel.Block.write: [src_off] (%d) or length (%d) of the destination \
+         bigarray are wrong."
+        dst_off (Bigarray.Array1.dim src);
+    if dst_off land ((1 lsl t.pagesize) - 1) != 0 then
+      invalid_argf
+        "Mkernel.Block.write: [dst_off] must be aligned to the pagesize (%d)"
+        (1 lsl t.pagesize);
+    match kind with
+    | `Sync -> unsafe ~fn:uk_block_sync_write t ~src_off ~dst_off src
+    | `Async -> async_unsafe ~fn:uk_block_async_write t ~src_off ~dst_off src
+
+  let atomic_read t ~src_off ?(dst_off = 0) bstr =
+    _read `Sync t ~src_off ~dst_off bstr
+
+  let atomic_write t ?(src_off = 0) ~dst_off bstr =
+    _write `Sync t ~src_off ~dst_off bstr
+
+  let read t ~src_off ?(dst_off = 0) bstr =
+    _read `Async t ~src_off ~dst_off bstr
+
+  let write t ?(src_off = 0) ~dst_off bstr =
+    _write `Async t ~src_off ~dst_off bstr
+end
 
 let blocking_net_read uid =
   let syscall = Miou.syscall () in
@@ -237,7 +375,7 @@ module Net = struct
     let default = Bigarray.Array1.dim bstr - off in
     let len = Option.value ~default len in
     if len < 0 || off < 0 || off > Bigarray.Array1.dim bstr - len then
-      invalid_arg "Miou_solo5.Net.write_bigstring: out of bounds";
+      invalid_arg "Mkernel.Net.write_bigstring: out of bounds";
     let bstr = Bigarray.Array1.sub bstr off len in
     let fn bstr' =
       Bigarray.Array1.(blit bstr (sub bstr' 0 len));
@@ -246,17 +384,6 @@ module Net = struct
     write_into t ~len ~fn
 
   let write_string _t ?off:_ ?len:_ _str = assert false
-end
-
-module Block = struct
-  type t = |
-
-  let pagesize _ = assert false
-  let atomic_read _t ~src_off:_ ?dst_off:_ _bstr = assert false
-  let atomic_write _t ?src_off:_ ~dst_off:_ _bstr = assert false
-  let read _t ~src_off:_ ?dst_off:_ _bstr = assert false
-  let write _t ?src_off:_ ~dst_off:_ _bstr = assert false
-  let connect _name = assert false
 end
 
 module Hook = struct
@@ -288,7 +415,7 @@ let sleep until =
   Heapq.insert elt domain.sleepers;
   Miou.suspend syscall
 
-(* poll part of Miou_solo5 *)
+(* poll part of Mkernel *)
 
 let rec sleeper () =
   match Heapq.find_min_exn domain.sleepers with
@@ -341,11 +468,17 @@ let yield domain deadline =
       Handles.remove domain.netdevs uid;
       Some signals
   | '\002' ->
+      (* TODO(dinosaure): [tid] fits into 6 bits and [uid] fits into 5 bits.
+         We can easily use a simple [int] to store these informations instead of
+         using an [Int64]. *)
       let uid = Bytes.get_int64_ne yield_result 1 in
-      let _uid = Int64.to_int uid in
+      let uid = Int64.to_int uid in
       let tid = Bytes.get_int64_ne yield_result 9 in
-      let _tid = Int64.to_int tid in
-      assert false
+      let tid = Int64.to_int tid in
+      let sid = (uid lsl 6) lor tid in
+      let signals = Handles.find domain.blkdevs sid in
+      Handles.remove domain.blkdevs sid;
+      Some signals
   | _ -> assert false
 
 type waiting = Infinity | Yield | Sleep of int
@@ -448,7 +581,11 @@ let rec ctor : type a. a arg -> a = function
       | Ok (t, cfg) -> (t, cfg)
       | Error (`Msg msg) -> failwithf "%s." msg
     end
-  | Block _device -> assert false
+  | Block device -> begin
+      match Block.connect device with
+      | Ok t -> t
+      | Error (`Msg msg) -> failwithf "%s." msg
+    end
   | Const v -> v
   | Map (args, fn) -> go (fun fn -> fn ()) args fn
 

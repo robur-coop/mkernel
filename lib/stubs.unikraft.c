@@ -3,8 +3,10 @@
  * Authors: Simon Kuenzer <simon.kuenzer@neclab.eu>
  *          Fabrice Buoro <fabrice@tarides.com>
  *          Romain Calascibetta <romain.calascibetta@gmail.com>
+ *          Roxana Nicolescu <nicolescu.roxana1996@gmail.com>
  *
  * Copyright (c) 2019, NEC Laboratories Europe GmbH, NEC Corporation.
+ *               2019, University Politehnica of Bucharest.
  *               2024-2025, Tarides.
  *               2025-2026, Robur Cooperative.
  *               All rights reserved.
@@ -569,8 +571,8 @@ void queue_callback(struct uk_blkdev *dev, uint16_t queue_id, void *argp) {
   }
 }
 
-stoken_id_t block_io(block_t *block, int write, unsigned long sstart,
-                     unsigned long size, char *buf) {
+stoken_id_t block_async_io(block_t *block, int write, unsigned long sstart,
+                           unsigned long size, char *buf) {
 
   token_t *token = acquire_token(block);
   if (!token) {
@@ -758,15 +760,74 @@ value uk_block_info(value v_block) {
   CAMLreturn(v_result);
 }
 
-// -------------------------------------------------------------------------- //
+/* NOTE(dinosaure): we want to provide synchronous read/write on block devices.
+ * Unikraft can provides them if CONFIG_LIBUKBLKDEV_SYNC_IO_BLOCKED_WAITING is
+ * set which is not the case for [ocaml-unikraft]. We copied the code here to be
+ * able to provide synchronous operations (and they are at the Unikraft level).
+ */
 
-static stoken_id_t block_read(block_t *block, unsigned long sstart,
-                              unsigned long size, char *buffer) {
-  return block_io(block, 0, sstart, size, buffer);
+struct uk_blkdev_sync_io_request {
+  struct uk_blkreq req; /* Request structure */
+  struct uk_semaphore
+      s; /* Semaphore used for waiting after the response is done. */
+};
+
+static void __sync_io_callback(struct uk_blkreq *req __unused,
+                               void *cookie_callback) {
+  struct uk_blkdev_sync_io_request *sync_io_req;
+  UK_ASSERT(cookie_callback);
+  sync_io_req = (struct uk_blkdev_sync_io_request *)cookie_callback;
+  uk_semaphore_up(&sync_io_req->s);
 }
 
-value uk_block_read(value v_block, value v_sstart, value v_size, value v_buffer,
-                    value v_offset) {
+static int uk_blkdev_sync_io(struct uk_blkdev *dev, uint16_t queue_id,
+                             enum uk_blkreq_op operation, __sector start_sector,
+                             __sector nb_sectors, void *buf) {
+  struct uk_blkreq *req;
+  int rc = 0;
+  struct uk_blkdev_sync_io_request sync_io_req;
+
+  UK_ASSERT(dev != NULL);
+  UK_ASSERT(queue_id < CONFIG_LIBUKBLKDEV_MAXNBQUEUES);
+  UK_ASSERT(dev->_data);
+  UK_ASSERT(dev->submit_one);
+  UK_ASSERT(dev->_data->state == UK_BLKDEV_RUNNING);
+  UK_ASSERT(dev->_queue[queue_id] && !PTRISERR(dev->_queue[queue_id]));
+
+  req = &sync_io_req.req;
+  uk_blkreq_init(req, operation, start_sector, nb_sectors, buf,
+                 __sync_io_callback, (void *)&sync_io_req);
+  uk_semaphore_init(&sync_io_req.s, 0);
+  rc = uk_blkdev_queue_submit_one(dev, queue_id, req);
+  if (unlikely(!uk_blkdev_status_successful(rc))) {
+    uk_pr_err("blkdev%" PRIu16 "-q%" PRIu16 ": Failed to submit I/O req: %d\n",
+              dev->_data->id, queue_id, rc);
+    return rc;
+  }
+
+  uk_semaphore_down(&sync_io_req.s);
+  return req->result;
+}
+
+value block_sync_io(block_t *block, int write, unsigned long sstart,
+                    unsigned long size, char *buf) {
+  int rc =
+      uk_blkdev_sync_io(block->dev, 0, write ? UK_BLKREQ_WRITE : UK_BLKREQ_READ,
+                        sstart, size, buf);
+  if (rc < 0)
+    return Val_false;
+  return Val_true;
+}
+
+// -------------------------------------------------------------------------- //
+
+static stoken_id_t block_async_read(block_t *block, unsigned long sstart,
+                                    unsigned long size, char *buffer) {
+  return block_async_io(block, 0, sstart, size, buffer);
+}
+
+value uk_block_async_read(value v_block, value v_sstart, value v_size,
+                          value v_buffer, value v_offset) {
   CAMLparam5(v_block, v_sstart, v_size, v_buffer, v_offset);
   CAMLlocal1(v_result);
 
@@ -776,7 +837,7 @@ value uk_block_read(value v_block, value v_sstart, value v_size, value v_buffer,
   unsigned long sstart = Int64_val(v_sstart);
   unsigned long size = Long_val(v_size);
 
-  const stoken_id_t rc = block_read(block, sstart, size, (char *)buf);
+  const stoken_id_t rc = block_async_read(block, sstart, size, (char *)buf);
   if (rc < 0) {
     v_result = alloc_result_error("uk_block_read: error");
     CAMLreturn(v_result);
@@ -787,15 +848,32 @@ value uk_block_read(value v_block, value v_sstart, value v_size, value v_buffer,
   CAMLreturn(v_result);
 }
 
-// -------------------------------------------------------------------------- //
-
-static stoken_id_t block_write(block_t *block, unsigned long sstart,
-                               unsigned long size, char *buffer) {
-  return block_io(block, 1, sstart, size, buffer);
+static int block_read(block_t *block, unsigned long sstart, unsigned long size,
+                      char *buffer) {
+  return block_sync_io(block, 0, sstart, size, buffer);
 }
 
-value uk_block_write(value v_block, value v_sstart, value v_size,
-                     value v_buffer, value v_offset) {
+value uk_block_read(value v_block, value v_sstart, value v_size, value v_buffer,
+                    value v_offset) {
+  CAMLparam5(v_block, v_sstart, v_size, v_buffer, v_offset);
+  block_t *block = (block_t *)Ptr_val(v_block);
+  char *buf = (char *)Caml_ba_data_val(v_buffer) + Long_val(v_offset);
+  unsigned long sstart = Int64_val(v_sstart);
+  unsigned long size = Long_val(v_size);
+
+  const int rc = block_read(block, sstart, size, (char *)buf);
+  CAMLreturn(Val_int(rc));
+}
+
+// -------------------------------------------------------------------------- //
+
+static stoken_id_t block_async_write(block_t *block, unsigned long sstart,
+                                     unsigned long size, char *buffer) {
+  return block_async_io(block, 1, sstart, size, buffer);
+}
+
+value uk_block_async_write(value v_block, value v_sstart, value v_size,
+                           value v_buffer, value v_offset) {
   CAMLparam5(v_block, v_sstart, v_size, v_buffer, v_offset);
   CAMLlocal1(v_result);
 
@@ -805,7 +883,7 @@ value uk_block_write(value v_block, value v_sstart, value v_size,
   unsigned long sstart = Int64_val(v_sstart);
   unsigned long size = Long_val(v_size);
 
-  const stoken_id_t rc = block_write(block, sstart, size, buf);
+  const stoken_id_t rc = block_async_write(block, sstart, size, buf);
   if (rc < 0) {
     v_result = alloc_result_error("uk_block_write: error");
     CAMLreturn(v_result);
@@ -814,6 +892,23 @@ value uk_block_write(value v_block, value v_sstart, value v_size,
 
   v_result = alloc_result_ok(Val_int(tokid));
   CAMLreturn(v_result);
+}
+
+static int block_write(block_t *block, unsigned long sstart, unsigned long size,
+                       char *buffer) {
+  return block_sync_io(block, 1, sstart, size, buffer);
+}
+
+value uk_block_write(value v_block, value v_sstart, value v_size,
+                     value v_buffer, value v_offset) {
+  CAMLparam5(v_block, v_sstart, v_size, v_buffer, v_offset);
+  block_t *block = (block_t *)Ptr_val(v_block);
+  char *buf = (char *)Caml_ba_data_val(v_buffer) + Long_val(v_offset);
+  unsigned long sstart = Int64_val(v_sstart);
+  unsigned long size = Long_val(v_size);
+
+  const int rc = block_write(block, sstart, size, (char *)buf);
+  CAMLreturn(Val_int(rc));
 }
 
 // -------------------------------------------------------------------------- //

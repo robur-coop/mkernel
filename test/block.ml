@@ -11,8 +11,8 @@ let cachet ~cachesize name =
   let open Mkernel in
   map (cachet_of_block ~cachesize) [ block name ]
 
-let run cachesize =
-  Mkernel.(run [ cachet ~cachesize "simple" ]) @@ fun blk () ->
+let () =
+  Mkernel.(run [ cachet ~cachesize:512 "0" ]) @@ fun blk () ->
   let pagesize = Cachet.pagesize blk in
   let prm =
     Miou.async @@ fun () ->
@@ -24,11 +24,12 @@ let run cachesize =
     let hash = Digest.string str in
     Fmt.pr "%08x: %s\n%!" 0 (Digest.to_hex hash)
   in
+  Miou.await_exn prm;
   let str = Cachet.get_string blk pagesize ~len:pagesize in
   let hash = Digest.string str in
-  Fmt.pr "%08x: %s\n%!" pagesize (Digest.to_hex hash);
-  Miou.await_exn prm
+  Fmt.pr "%08x: %s\n%!" pagesize (Digest.to_hex hash)
 
+(*
 open Cmdliner
 
 let cachesize =
@@ -47,3 +48,4 @@ let cmd =
   Cmd.v info term
 
 let () = Cmd.(exit @@ eval cmd)
+*)

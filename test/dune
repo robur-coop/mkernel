@@ -2,11 +2,11 @@
  (name sleep)
  (modules sleep)
  (modes native)
- (enabled_if
-  (or
-   (= %{context_name} "solo5")
-   (= %{context_name} "default")))
- (link_flags :standard -cclib "-z solo5-abi=hvt")
+; (enabled_if
+;  (or
+;   (= %{context_name} "solo5")
+;   (= %{context_name} "default")))
+ (link_flags :standard -linkall -cclib "-z unikraft-backend=qemu" -cclib "-z solo5-abi=hvt")
  (libraries mkernel)
  (foreign_stubs
   (language c)
@@ -16,11 +16,11 @@
  (name schedule)
  (modules schedule)
  (modes native)
- (enabled_if
-  (or
-   (= %{context_name} "solo5")
-   (= %{context_name} "default")))
- (link_flags :standard -cclib "-z solo5-abi=hvt")
+; (enabled_if
+;  (or
+;   (= %{context_name} "solo5")
+;   (= %{context_name} "default")))
+ (link_flags :standard -linkall -cclib "-z unikraft-backend=qemu" -cclib "-z solo5-abi=hvt")
  (libraries mkernel)
  (foreign_stubs
   (language c)
@@ -30,11 +30,11 @@
  (name block)
  (modules block)
  (modes native)
- (enabled_if
-  (or
-   (= %{context_name} "solo5")
-   (= %{context_name} "default")))
- (link_flags :standard -cclib "-z solo5-abi=hvt")
+; (enabled_if
+;  (or
+;   (= %{context_name} "solo5")
+;   (= %{context_name} "default")))
+ (link_flags :standard -linkall -cclib "-z unikraft-backend=qemu" -cclib "-z solo5-abi=hvt")
  (libraries mkernel cmdliner fmt cachet hxd.core hxd.string)
  (foreign_stubs
   (language c)
@@ -44,10 +44,10 @@
  (name cmdline)
  (modules cmdline)
  (modes native)
- (enabled_if
-  (or
-   (= %{context_name} "solo5")
-   (= %{context_name} "default")))
+; (enabled_if
+;  (or
+;   (= %{context_name} "solo5")
+;   (= %{context_name} "default")))
  (link_flags :standard -cclib "-z solo5-abi=hvt")
  (libraries mkernel cmdliner fmt)
  (foreign_stubs
@@ -74,7 +74,9 @@
 (rule
  (targets manifest.sleep.c)
  (enabled_if
-  (= %{context_name} "default"))
+  (or
+   (= %{context_name} "default")
+   (= %{context_name} "unikraft")))
  (action
   (write-file manifest.sleep.c "")))
 
@@ -98,7 +100,9 @@
 (rule
  (targets manifest.schedule.c)
  (enabled_if
-  (= %{context_name} "default"))
+  (or
+   (= %{context_name} "default")
+   (= %{context_name} "unikraft")))
  (action
   (write-file manifest.schedule.c "")))
 
@@ -122,7 +126,9 @@
 (rule
  (targets manifest.block.c)
  (enabled_if
-  (= %{context_name} "default"))
+  (or
+   (= %{context_name} "default")
+   (= %{context_name} "unikraft")))
  (action
   (write-file manifest.block.c "")))
 
@@ -146,11 +152,20 @@
 (rule
  (targets manifest.cmdline.c)
  (enabled_if
-  (= %{context_name} "default"))
+  (or
+   (= %{context_name} "default")
+   (= %{context_name} "unikraft")))
  (action
   (write-file manifest.cmdline.c "")))
 
 (cram
  (enabled_if
   (= %{context_name} "solo5"))
+ (applies_to solo5)
+ (deps sleep.exe schedule.exe block.exe simple.txt cmdline.exe))
+
+(cram
+ (enabled_if
+  (= %{context_name} "unikraft"))
+ (applies_to unikraft)
  (deps sleep.exe schedule.exe block.exe simple.txt cmdline.exe))
