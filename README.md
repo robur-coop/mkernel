@@ -12,10 +12,10 @@ Basically, a unikernel can be built from 2 devices:
 
 ## How to build an unikernel with Miou & Solo5
 
-Here's an example of a simple unikernel with `Miou_solo5` which displays
+Here's an example of a simple unikernel with `Mkernel` which displays
 "Hello World":
 ```ocaml
-let () = Miou_solo5.(run []) @@ fun () ->
+let () = Mkernel.(run []) @@ fun () ->
   print_endline "Hello World"
 ```
 
@@ -50,7 +50,7 @@ the "manifest.c" required:
 
 Our first objective is to _infer_ the devices needed for our unikernel. In this
 case, our unikernel in our host context is not really going to run. It will
-collect the devices we have in the list we pass to `Miou_solo5.run` and generate
+collect the devices we have in the list we pass to `Mkernel.run` and generate
 a JSON file describing the devices needed by our unikernel.
 ```shell
 $ dune exec main.exe
