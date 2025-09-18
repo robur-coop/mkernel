@@ -1,10 +1,10 @@
-# Miou & Solo5
+# Miou & Solo5/Unikraft
 
 This library can be used to create unikernels with [Miou][miou] and
-[Solo5][solo5]. The library exposes what Solo5 can expose and implements a
-simple scheduler using Miou in order to develop a unikernel. Examples are
-available in the [tests][tests] to show how to implement and build an
-unikernel.
+[Solo5][solo5] or [Unikraft][unikraft]. The library exposes what Solo5 can
+expose and implements a simple scheduler using Miou in order to develop a
+unikernel. Examples are available in the [tests][tests] to show how to
+implement and build an unikernel.
 
 Basically, a unikernel can be built from 2 devices:
 - the net device (a [TAP interface][tap])
@@ -114,7 +114,14 @@ What's more, you can't run it as a simple program but "virtualise" it using the
 _tender_ `solo5-hvt`. Congratulations, you've made a _complete_ operating
 system in OCaml!
 
+## And Unikraft?
+
+It is possible to specify ‘-z unikraft-backend=qemu’ to also compile a
+unikernel to Unikraft (in the context of [ocaml-unikraft][unikraft]). The
+manifest required for Solo5 is **not** necessary in the case of Unikraft.
+
 [miou]: https://github.com/robur-coop/miou
 [solo5]: https://github.com/Solo5/solo5
 [tap]: https://en.wikipedia.org/wiki/TUN/TAP
 [ocaml-solo5]: https://github.com/mirage/ocaml-solo5
+[unikraft]: https://github.com/mirage/ocaml-unikraft.git
