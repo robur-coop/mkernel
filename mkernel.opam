@@ -1,9 +1,9 @@
 opam-version: "2.0"
 maintainer:   "romain.calascibetta@gmail.com"
-homepage:     "https://git.robur.coop/robur/miou-solo5"
-bug-reports:  "https://git.robur.coop/robur/miou-solo5/issues"
-dev-repo:     "git+https://git.robur.coop/robur/miou-solo5.git"
-doc:          "https://git.robur.coop/robur/miou-solo5"
+homepage:     "https://git.robur.coop/robur/mkernel"
+bug-reports:  "https://git.robur.coop/robur/mkernel/issues"
+dev-repo:     "git+https://git.robur.coop/robur/mkernel.git"
+doc:          "https://git.robur.coop/robur/mkernel"
 license:      "ISC"
 authors:      [ "Romain Calascibetta <romain.calascibetta@gmail.com>" ]
 tags:         [ "org:mirage" ]

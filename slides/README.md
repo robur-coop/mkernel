@@ -1,4 +1,4 @@
-This slide gives an overview of `miou-solo5`. It requires `slides` and `graph-easy`:
+This slide gives an overview of `mkernel`. It requires `slides` and `graph-easy`:
 
 ```shell
 $ sudo pacman -S perl-graph-easy

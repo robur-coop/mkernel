@@ -212,7 +212,7 @@ We therefore need to develop:
 
 ---
 
-## Scheduler, introduction to Miou (`miou-solo5`)
+## Scheduler, introduction to Miou (`mkernel`)
 
 Miou is a simple scheduler in OCaml (using effects). Its task management policy is similar to `async` in order to make a Miou application as **available as possible** when receiving external events.
 
@@ -253,7 +253,7 @@ Solo5: solo5_exit(0) called
 
 ## FFI, example with a block device
 
-`miou-solo5` implements FFI for Solo5:
+`mkernel` implements FFI for Solo5:
 
 ```ocaml
 let () =
@@ -326,7 +326,7 @@ Then, we just describe our unikernel as a simple executable into the `dune` file
  (modules main)
  (modes native)
  (link_flags :standard -cclib "-z solo5-abi=hvt")
- (libraries miou-solo5)
+ (libraries mkernel)
  (foreign_stubs
   (language c)
   (names manifest)))
@@ -352,7 +352,7 @@ We can therefore:
 
 ---
 
-### `miou-solo5` can also generate the `manifest.json`
+### `mkernel` can also generate the `manifest.json`
 
 When there are two toolchains, as soon as an executable needs to be compiled, it is compiled twice.
 
@@ -503,7 +503,7 @@ Retreat!
 ## Results
 
 At this stage, we can therefore offer:
-- a scheduler for OCaml 5 (Miou & `miou-solo5`)
+- a scheduler for OCaml 5 (Miou & `mkernel`)
 - basic interactions for interacting with the rest of the world (via network interfaces or block devices)
 - the beginnings of a TCP/IP stack using `utcp`
 - so now we can start having fun!

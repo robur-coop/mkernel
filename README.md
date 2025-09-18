@@ -26,7 +26,7 @@ First of all, we can build a simple executable from this code:
  (modules main)
  (modes native)
  (link_flags :standard -cclib "-z solo5-abi=hvt")
- (libraries miou-solo5)
+ (libraries mkernel)
  (foreign_stubs
   (language c)
   (names manifest)))
@@ -103,7 +103,7 @@ context:
 
 We can now compile our unikernel with a simple: `dune build`!
 ```shell
-$ opam source miou-solo5
+$ opam source mkernel
 $ dune build
 $ solo5-hvt _build/solo5/main.exe --solo5:quiet
 Hello World
