@@ -2,7 +2,7 @@
  (name mkernel)
  (public_name mkernel)
  (modules mkernel)
- (libraries hxd.core hxd.string bstr ohex jsonm logs miou)
+ (libraries bstr ohex jsonm logs miou)
  (flags
   (:standard -no-keep-locs))
  (wrapped false)
