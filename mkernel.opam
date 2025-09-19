@@ -30,5 +30,12 @@ depends: [
 
 pin-depends: [
   [ "ocaml-unikraft.1.0.0" "git+https://github.com/mirage/ocaml-unikraft.git#9becd4cae4612f5250753eae896b3e173108ab0f" ]
+  [ "ocaml-unikraft-x86_64.1.0.0" "git+https://github.com/mirage/ocaml-unikraft.git#9becd4cae4612f5250753eae896b3e173108ab0f" ]
+  [ "ocaml-unikraft-toolchain-x86_64.0.18.0" "git+https://github.com/mirage/ocaml-unikraft.git#9becd4cae4612f5250753eae896b3e173108ab0f" ]
+  [ "ocaml-unikraft-default-x86_64.1.0.0" "git+https://github.com/mirage/ocaml-unikraft.git#9becd4cae4612f5250753eae896b3e173108ab0f" ]
+  [ "ocaml-unikraft-arm64.1.0.0" "git+https://github.com/mirage/ocaml-unikraft.git#9becd4cae4612f5250753eae896b3e173108ab0f" ]
+  [ "ocaml-unikraft-default-arm64.1.0.0" "git+https://github.com/mirage/ocaml-unikraft.git#9becd4cae4612f5250753eae896b3e173108ab0f" ]
+  [ "ocaml-unikraft-toolchain-arm64.0.18.0" "git+https://github.com/mirage/ocaml-unikraft.git#9becd4cae4612f5250753eae896b3e173108ab0f" ]
   [ "ocaml-unikraft-backend-qemu.0.18.0" "git+https://github.com/mirage/ocaml-unikraft.git#9becd4cae4612f5250753eae896b3e173108ab0f" ]
+  [ "ocaml-solo5.1.1.0" "git+https://github.com/mirage/ocaml-solo5.git#c8a95779da6c0e444d4606d6d001098fc00d4b2d" ]
 ]
