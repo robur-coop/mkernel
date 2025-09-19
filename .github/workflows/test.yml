@@ -21,5 +21,13 @@ jobs:
         run: opam install --deps-only -t mkernel
       - name: Build
         run: opam exec -- dune build -p mkernel
+      - name: Enable KVM group perms
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo apt-get update
+          sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu qemu-system-x86
+          sudo usermod -a -G kvm,libvirt $USER
       - name: Test
         run: opam exec -- dune runtest -p mkernel
