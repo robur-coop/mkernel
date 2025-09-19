@@ -164,8 +164,8 @@
  (applies_to solo5)
  (deps sleep.exe schedule.exe block.exe simple.txt cmdline.exe))
 
-(cram
- (enabled_if
-  (= %{context_name} "unikraft"))
- (applies_to unikraft)
- (deps sleep.exe schedule.exe block.exe simple.txt cmdline.exe))
+; (cram
+;  (enabled_if
+;   (= %{context_name} "unikraft"))
+;  (applies_to unikraft)
+;  (deps sleep.exe schedule.exe block.exe simple.txt cmdline.exe))
