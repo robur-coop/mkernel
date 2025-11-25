@@ -303,8 +303,20 @@ module Net = struct
   let write t ~off ~len bstr =
     match miou_solo5_net_write t off len bstr with
     | 0 -> ()
+    | 1 -> write t ~off ~len bstr
     | 2 -> invalid_arg "Mkernel.Net.write"
-    | _ -> assert false (* AGAIN | UNSPEC *)
+    | _ -> assert false (* UNSPEC *)
+  (* NOTE(dinosaure): we recall [write] when we receive [1]/[SOLO5_R_AGAIN]
+     because on top of [Mkernel.Net.write], we assume that this function has
+     effectively written the Ethernet frame we wanted.
+
+     This is particularly important for protocols that want to write a frame to
+     close an active connection and free up the associated resources. In a way,
+     this operation must be "atomic" (in the sense that it must be indivisible
+     by the scheduler) and effective (in the sense that its completion ensures
+     that the frame has been written).
+
+     [SOLO5_R_AGAIN] only appears for virtio. *)
 
   let write_bigstring t ?(off = 0) ?len bstr =
     let len =
