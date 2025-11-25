@@ -135,6 +135,13 @@ intnat miou_solo5_clock_monotonic(__unit()) {
 
 intnat miou_solo5_clock_wall(__unit()) { return (solo5_clock_wall()); }
 
+extern int malloc_trim(size_t);
+
+CAMLprim value
+miou_solo5_malloc_trim(__unit()) {
+  return (Val_bool(malloc_trim(0)));
+}
+
 extern void _nolibc_init(uintptr_t, size_t);
 
 static char *strdup(const char *s) {

@@ -92,7 +92,7 @@
     to understand how reading and writing behave when developing an application
     as a unikernel using Solo5/Unikraft.
 
-    Writing a packet to the net interface is direct and failsafe. In other
+    Writing a packet to the net interface is {b direct} and failsafe. In other
     words, we don't need to wait for anything to happen before writing to the
     net device (if an error occurs on your host system, the tender will fail —
     and by extension, so will your unikernel). So, from the scheduler's point of
@@ -187,14 +187,32 @@ module Net : sig
       @raise Invalid_argument
         if [off] and [len] do not designate a valid range of [bstr]. *)
 
+  (** {4 Writing to a net device according to the backend.}
+
+      Depending on the backend used (Solo5/hvt or Unikraft & Solo5/virtio),
+      writing to a TAP interface may involve an intermediate "queue" between the
+      unikernel (which fills this queue) and the tender (which consumes this
+      queue). This feature allows for a process on the tender side that attempts
+      to write without interruption (and thus improves performance).
+
+      In this case, unlike Solo5/hvt, writing is not necessarily effective
+      between the unikernel and the TAP interface. However, this effectiveness
+      also involves the tender's point of view, which is not taken into account
+      (deliberately) in this documentation.
+
+      Furthermore, from the point of view of the unikernel, OCaml and Miou (and
+      only on that side), the write is effective. *)
+
   val write_bigstring : t -> ?off:int -> ?len:int -> bigstring -> unit
   (** [write_bigstring t ?off ?len bstr] writes [len] (defaults to
       [Bigarray.Array1.dim bstr - off]) bytes to the net device [t], taking them
       from byte sequence [bstr], starting at position [off] (defaults to [0]) in
       [bstr].
 
-      [write_bigstring] is currently writing directly to the net device [t].
-      Writing cannot fail.
+      [write_bigstring] is currently writing directly to the net device [t]. In
+      other words, the write is effective and does not give the scheduler the
+      opportunity to execute another task during the write. It is therefore an
+      atomic operation. Writing cannot fail.
 
       @raise Invalid_argument
         if [off] and [len] do not designate a valid range of [bstr]. *)
@@ -207,7 +225,11 @@ module Net : sig
       to write a new Ethernet frame. In the case of Unikraft, for example, we
       need to allocate a buffer that will be added to Unikraft's internal queue
       so that it can be written to the TAP interface. The same applies to Solo5
-      and its virtio support.
+      and its {i virtio} support.
+
+      [write_into] has the same characteristic as {!val:write_bigstring}, i.e.
+      it is an atomic operation that does not give the scheduler the opportunity
+      to execute another task.
 
       In this specific case, [write_into] is more useful than
       {!val:write_bigstring} because it prepares the allocation and lets the

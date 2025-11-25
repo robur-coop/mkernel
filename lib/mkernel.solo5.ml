@@ -89,6 +89,11 @@ external miou_solo5_block_write :
   -> (int[@untagged]) = "unimplemented" "miou_solo5_block_write"
 [@@noalloc]
 
+external miou_solo5_malloc_trim :
+     unit
+  -> bool = "unimplemented" "miou_solo5_malloc_trim"
+[@@noalloc]
+
 (* End of the unsafe part. Come back to the OCaml world! *)
 
 external unsafe_get_int64_ne : bytes -> int -> int64 = "%caml_bytes_get64u"
@@ -576,8 +581,16 @@ and go : type k res. ((unit -> res) -> res) -> (k, res) devices -> k -> res =
         let r = f v in
         go run devices r
 
+let trim () =
+  Gc.compact ();
+  let trimmed = miou_solo5_malloc_trim () in
+  Log.debug (fun m -> m "dlmalloc trimmed: %b" trimmed)
+
 let run ?now:clock ?g devices fn =
   Option.iter (fun fn -> now := fn) clock;
+  let alarm = Gc.create_alarm trim in
+  let finally () = Gc.delete_alarm alarm in
+  Fun.protect ~finally @@ fun () ->
   Miou.run ~events ~domains:0 ?g @@ fun () ->
   let run fn = fn () in
   go run devices fn
