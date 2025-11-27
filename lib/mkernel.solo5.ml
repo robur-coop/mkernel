@@ -300,7 +300,7 @@ module Net = struct
         invalid_arg "Mkernel.Net.read_bytes: out of bounds";
       go off len
 
-  let write t ~off ~len bstr =
+  let rec write t ~off ~len bstr =
     match miou_solo5_net_write t off len bstr with
     | 0 -> ()
     | 1 -> write t ~off ~len bstr
