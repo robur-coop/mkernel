@@ -199,6 +199,9 @@ module Block = struct
 
   let pagesize { pagesize; _ } = 1 lsl pagesize
 
+  let length { pagesize; number_of_pages; _ } =
+    pagesize * Int64.to_int number_of_pages
+
   let unsafe_ctz n =
     let t = ref 1 in
     let r = ref 0 in

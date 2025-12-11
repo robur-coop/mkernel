@@ -71,6 +71,7 @@ module Block = struct
   type t = { handle: int; pagesize: int }
 
   let pagesize _ = assert false
+  let length _ = assert false
   let connect _name = assert false
   let atomic_read _t ~src_off:_ ?dst_off:_ _bstr = assert false
   let atomic_write _t ?src_off:_ ~dst_off:_ _bstr = assert false
