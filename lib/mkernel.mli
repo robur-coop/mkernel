@@ -256,6 +256,9 @@ module Block : sig
       a fixed length block, the unit for memory allocation and block-device
       mapping performed by the functions above. *)
 
+  val length : t -> int
+  (** [length t] returns the length of the block device (in bytes). *)
+
   val atomic_read : t -> src_off:int -> ?dst_off:int -> bigstring -> unit
   (** [atomic_read t ~src_off ?dst_off bstr] reads data of [pagesize t] bytes
       into the buffer [bstr] (starting at byte [dst_off]) from the block device

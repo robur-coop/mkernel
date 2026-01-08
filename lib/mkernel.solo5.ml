@@ -89,9 +89,8 @@ external miou_solo5_block_write :
   -> (int[@untagged]) = "unimplemented" "miou_solo5_block_write"
 [@@noalloc]
 
-external miou_solo5_malloc_trim :
-     unit
-  -> bool = "unimplemented" "miou_solo5_malloc_trim"
+external miou_solo5_malloc_trim : unit -> bool
+  = "unimplemented" "miou_solo5_malloc_trim"
 [@@noalloc]
 
 (* End of the unsafe part. Come back to the OCaml world! *)
@@ -103,20 +102,21 @@ let failwithf fmt = Format.kasprintf failwith fmt
 let error_msgf fmt = Format.kasprintf (fun msg -> Error (`Msg msg)) fmt
 
 module Block_direct = struct
-  type t = { handle: int; pagesize: int }
+  type t = { handle: int; pagesize: int; len: int }
 
   let pagesize { pagesize; _ } = pagesize
+  let length { len; _ } = len
 
   let connect name =
     let handle = Bytes.make 8 '\000' in
-    let _len = Bytes.make 8 '\000' in
+    let len = Bytes.make 8 '\000' in
     let pagesize = Bytes.make 8 '\000' in
-    match miou_solo5_block_acquire name handle _len pagesize with
+    match miou_solo5_block_acquire name handle len pagesize with
     | 0 ->
         let handle = Int64.to_int (Bytes.get_int64_ne handle 0) in
-        let _len = Int64.to_int (Bytes.get_int64_ne _len 0) in
+        let len = Int64.to_int (Bytes.get_int64_ne len 0) in
         let pagesize = Int64.to_int (Bytes.get_int64_ne pagesize 0) in
-        Ok { handle; pagesize }
+        Ok { handle; pagesize; len }
     | errno ->
         error_msgf "Impossible to connect the block-device %s (%d)" name errno
 
@@ -305,7 +305,8 @@ module Net = struct
     | 0 -> ()
     | 1 -> write t ~off ~len bstr
     | 2 -> invalid_arg "Mkernel.Net.write"
-    | _ -> assert false (* UNSPEC *)
+    | _ -> assert false
+  (* UNSPEC *)
   (* NOTE(dinosaure): we recall [write] when we receive [1]/[SOLO5_R_AGAIN]
      because on top of [Mkernel.Net.write], we assume that this function has
      effectively written the Ethernet frame we wanted.
