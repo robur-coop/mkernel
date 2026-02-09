@@ -178,12 +178,14 @@
 
 (cram
  (enabled_if
-  (= %{context_name} "solo5"))
+  (and (= %{context_name} "solo5")
+       (= %{profile} kvm)))
  (applies_to solo5)
  (deps sleep.exe schedule.exe block.exe simple.txt cmdline.exe))
 
 (cram
  (enabled_if
-  (= %{context_name} "unikraft"))
+  (and (= %{context_name} "unikraft")
+       (= %{profile} kvm)))
  (applies_to unikraft)
  (deps sleep.exe schedule.exe block.exe simple.txt cmdline.exe))
