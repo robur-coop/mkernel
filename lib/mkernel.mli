@@ -35,7 +35,8 @@
     A unikernel has exclusive use of a CPU and a memory area separate from the
     host system. This CPU simply executes the unikernel code. To date, there is
     no support for multiple cores. However, a scheduler is certainly needed in
-    order to be able to execute multiple tasks {i at the same time}.
+    order to be able to execute multiple tasks {i at the same time}
+    (cooperatively).
 
     As such, this library is based on the Miou scheduler. It is a small
     scheduler that uses the effects of OCaml 5 and allows tasks to be launched
@@ -102,8 +103,8 @@
     However, this is not the case when reading on the net interface. You might
     expect to read packets, but they might not be available at the time you try
     to read them. [Mkernel] will make a first attempt at reading and if it
-    fails, the scheduler will "suspend" the reading task (and everything that
-    follows from it) to observe at another point in the life of unikernel
+    fails, the scheduler will {i "suspend"} the reading task (and everything
+    that follows from it) to observe at another point in the life of unikernel
     whether a packet has just arrived.
 
     Reading on the net interface is currently the only operation where
@@ -113,6 +114,40 @@
     task) that [Mkernel] will ask the tender if a packet has just arrived. If
     this is the case, the scheduler will resume the reading task, otherwise it
     will keep it in a suspended state until the next opportunity.
+
+    {4 Allocating a net device.}
+
+    Whether it is Solo5 (and its tender) or Unikraft (via [qemu] or
+    [firecracker]), it is necessary for the user to be able to allocate a
+    network interface, often referred to as a {i tap} interface. The latter is a
+    virtualization of an Ethernet port that can be manipulated both by the
+    unikernel (in order to communicate with the rest of the world) and the host
+    system (to be configured so that the unikernel is connected to a network).
+
+    Here's how to create a tap interface on Linux:
+
+    {[
+      $ sudo ip tuntap add name tap0 mode tap
+      $ sudo ip link set tap0 up
+    ]}
+
+    It is generally accepted that the tap interface should be connected to a
+    bridge (also virtual) in order to connect multiple unikernels (and therefore
+    multiple tap interfaces) to a network. Here is how to "connect" a tap
+    interface to a bridge:
+
+    {[
+      $ sudo ip link add name service type bridge
+      $ sudo ip addr add 10.0.0.1/24 dev service
+      $ sudo ip link set tap0 master service
+      $ sudo ip link set service up
+    ]}
+
+    Finally, it is often accepted that the unikernel can communicate with the
+    Internet. It is generally necessary to configure the host system (its proxy)
+    in order to correctly route incoming/outgoing packets to the unikernel (or
+    your "output"). This last step depends on your network topology, but we
+    recommend learning about iptables, the nat table, and the MASQUERADE target.
 
     {3 Block interfaces.}
 
@@ -147,7 +182,18 @@
     having any effect on the result. For example, scheduling reads on a block
     device that is read-only is probably more interesting than using atomic
     reads (whether the read is done at time [T0] or [T1], the result remains
-    exactly the same). *)
+    exactly the same).
+
+    {4 Allocating a block device.}
+
+    A block device is basically a file. The only constraint is that its size
+    must be aligned. This means that if you want to launch your unikernel with a
+    page size of 512 (the default value for Solo5), the file must have a size
+    that is a multiple of 512. Here's how to create a block device with [dd]:
+
+    {[
+      $ dd if=/dev/urandom of=block.img count=1024 bs=512
+    ]} *)
 
 type bigstring =
   (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
