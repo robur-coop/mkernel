@@ -19,8 +19,8 @@ depends: [
   "miou"
   "solo5"
   "logs"
-  "ohex"
-  "jsonm"
+  "jsont"
+  "bytesrw"
   "ocaml-solo5"
   "hxd" {with-test}
   "fmt" {with-test}

@@ -1,58 +1,26 @@
 type bigstring =
   (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
 
-module Json = struct
-  type value = [ `Null | `Bool of bool | `String of string | `Float of float ]
-  type t = [ value | `A of t list | `O of (string * t) list ]
+let device =
+  let open Jsont in
+  let open Object in
+  let with_name = map Fun.id |> mem "name" ~enc:Fun.id string |> finish in
+  let block = Case.map "BLOCK_BASIC" with_name ~dec:(fun name -> `Block name) in
+  let net = Case.map "NET_BASIC" with_name ~dec:(fun name -> `Net name) in
+  let enc_case = function
+    | `Block name -> Case.value block name
+    | `Net name -> Case.value net name
+  in
+  let cases = Case.[ make block; make net ] in
+  map Fun.id |> case_mem "type" string ~enc:Fun.id ~enc_case cases |> finish
 
-  module Stack = struct
-    type stack =
-      | In_array of t list * stack
-      | In_object of (string * t) list * stack
-      | Empty
-  end
-
-  let encode ?minify ?(size_chunk = 0x800) ~output t =
-    let encoder = Jsonm.encoder ?minify `Manual in
-    let buf = Bytes.create size_chunk in
-    let rec encode k stack value =
-      match Jsonm.encode encoder value with
-      | `Ok -> k stack
-      | `Partial ->
-          let len = Bytes.length buf - Jsonm.Manual.dst_rem encoder in
-          output (Bytes.sub_string buf 0 len);
-          Jsonm.Manual.dst encoder buf 0 (Bytes.length buf);
-          encode k stack `Await
-    and value k v stack =
-      match v with
-      | #value as v -> encode (continue k) stack (`Lexeme v)
-      | `O ms -> encode (obj k ms) stack (`Lexeme `Os)
-      | `A vs -> encode (arr k vs) stack (`Lexeme `As)
-    and obj k ms stack =
-      match ms with
-      | (n, v) :: ms ->
-          let stack = Stack.In_object (ms, stack) in
-          encode (value k v) stack (`Lexeme (`Name n))
-      | [] -> encode (continue k) stack (`Lexeme `Oe)
-    and arr k vs stack =
-      match vs with
-      | v :: vs ->
-          let stack = Stack.In_array (vs, stack) in
-          value k v stack
-      | [] -> encode (continue k) stack (`Lexeme `Ae)
-    and continue k = function
-      | Stack.In_array (vs, stack) -> arr k vs stack
-      | Stack.In_object (ms, stack) -> obj k ms stack
-      | Stack.Empty as stack -> encode k stack `End
-    in
-    Jsonm.Manual.dst encoder buf 0 (Bytes.length buf);
-    value (Fun.const ()) t Stack.Empty
-end
-
-let to_json = function
-  | `Block name ->
-      `O [ ("name", `String name); ("type", `String "BLOCK_BASIC") ]
-  | `Net name -> `O [ ("name", `String name); ("type", `String "NET_BASIC") ]
+let t =
+  let open Jsont in
+  Object.map (fun _ _ devices -> devices)
+  |> Object.mem "type" ~enc:(Fun.const "solo5.manifest") string
+  |> Object.mem "version" ~enc:(Fun.const 1) int
+  |> Object.mem "devices" ~enc:Fun.id (list device)
+  |> Object.finish
 
 module Net = struct
   type t = int
@@ -125,13 +93,6 @@ let collect devices =
 
 let run ?now:_ ?g:_ args _fn =
   let devices = collect args in
-  let v =
-    `O
-      List.
-        [
-          ("type", `String "solo5.manifest"); ("version", `Float 1.0)
-        ; ("devices", `A (List.map to_json devices))
-        ]
-  in
-  let output str = output_string stdout str in
-  Json.encode ~output v; exit 0
+  match Jsont_bytesrw.encode_string t devices with
+  | Ok str -> print_endline str; exit 0
+  | Error str -> prerr_endline str; exit 1
