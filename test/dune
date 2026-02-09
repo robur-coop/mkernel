@@ -2,11 +2,17 @@
  (name sleep)
  (modules sleep)
  (modes native)
-; (enabled_if
-;  (or
-;   (= %{context_name} "solo5")
-;   (= %{context_name} "default")))
- (link_flags :standard -linkall -cclib "-z unikraft-backend=qemu" -cclib "-z solo5-abi=hvt")
+ ; (enabled_if
+ ;  (or
+ ;   (= %{context_name} "solo5")
+ ;   (= %{context_name} "default")))
+ (link_flags
+  :standard
+  -linkall
+  -cclib
+  "-z unikraft-backend=qemu"
+  -cclib
+  "-z solo5-abi=hvt")
  (libraries mkernel)
  (foreign_stubs
   (language c)
@@ -16,11 +22,17 @@
  (name schedule)
  (modules schedule)
  (modes native)
-; (enabled_if
-;  (or
-;   (= %{context_name} "solo5")
-;   (= %{context_name} "default")))
- (link_flags :standard -linkall -cclib "-z unikraft-backend=qemu" -cclib "-z solo5-abi=hvt")
+ ; (enabled_if
+ ;  (or
+ ;   (= %{context_name} "solo5")
+ ;   (= %{context_name} "default")))
+ (link_flags
+  :standard
+  -linkall
+  -cclib
+  "-z unikraft-backend=qemu"
+  -cclib
+  "-z solo5-abi=hvt")
  (libraries mkernel)
  (foreign_stubs
   (language c)
@@ -30,11 +42,17 @@
  (name block)
  (modules block)
  (modes native)
-; (enabled_if
-;  (or
-;   (= %{context_name} "solo5")
-;   (= %{context_name} "default")))
- (link_flags :standard -linkall -cclib "-z unikraft-backend=qemu" -cclib "-z solo5-abi=hvt")
+ ; (enabled_if
+ ;  (or
+ ;   (= %{context_name} "solo5")
+ ;   (= %{context_name} "default")))
+ (link_flags
+  :standard
+  -linkall
+  -cclib
+  "-z unikraft-backend=qemu"
+  -cclib
+  "-z solo5-abi=hvt")
  (libraries mkernel cmdliner fmt cachet hxd.core hxd.string)
  (foreign_stubs
   (language c)
@@ -44,10 +62,10 @@
  (name cmdline)
  (modules cmdline)
  (modes native)
-; (enabled_if
-;  (or
-;   (= %{context_name} "solo5")
-;   (= %{context_name} "default")))
+ ; (enabled_if
+ ;  (or
+ ;   (= %{context_name} "solo5")
+ ;   (= %{context_name} "default")))
  (link_flags :standard -cclib "-z solo5-abi=hvt")
  (libraries mkernel cmdliner fmt)
  (foreign_stubs
