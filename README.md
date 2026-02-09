@@ -116,7 +116,7 @@ system in OCaml!
 
 ## And Unikraft?
 
-It is possible to specify ‘-z unikraft-backend=qemu’ to also compile a
+It is possible to specify '-z unikraft-backend=qemu' to also compile a
 unikernel to Unikraft (in the context of [ocaml-unikraft][unikraft]). The
 manifest required for Solo5 is **not** necessary in the case of Unikraft.
 
@@ -125,3 +125,4 @@ manifest required for Solo5 is **not** necessary in the case of Unikraft.
 [tap]: https://en.wikipedia.org/wiki/TUN/TAP
 [ocaml-solo5]: https://github.com/mirage/ocaml-solo5
 [unikraft]: https://github.com/mirage/ocaml-unikraft.git
+[tests]: ./test
