@@ -180,6 +180,7 @@
  (enabled_if
   (and (= %{context_name} "solo5")
        (= %{profile} kvm)))
+ (package mkernel)
  (applies_to solo5)
  (deps sleep.exe schedule.exe block.exe simple.txt cmdline.exe))
 
@@ -187,5 +188,6 @@
  (enabled_if
   (and (= %{context_name} "unikraft")
        (= %{profile} kvm)))
+ (package mkernel)
  (applies_to unikraft)
  (deps sleep.exe schedule.exe block.exe simple.txt cmdline.exe))
