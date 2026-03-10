@@ -407,7 +407,7 @@ end
 
 val clock_monotonic : unit -> int
 (** [clock_monotonic ()] returns monotonic time since an unspecified period in
-    the past.
+    the past. The unit is nanoseconds.
 
     The monotonic clock corresponds to the CPU time spent since the boot time.
     The monotonic clock cannot be relied upon to provide accurate results -
@@ -419,7 +419,8 @@ val clock_monotonic : unit -> int
     the opportunity to execute another task. *)
 
 val clock_wall : unit -> int
-(** [clock_wall ()] returns wall clock in UTC since the UNIX epoch (1970-01-01).
+(** [clock_wall ()] returns wall clock in UTC since the UNIX epoch (1970-01-01)
+    in nanoseconds.
 
     The wall clock corresponds to the host's clock. Indeed, each time
     [clock_wall ()] is called, a syscall/hypercall is made to get the host's
