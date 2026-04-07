@@ -582,16 +582,16 @@ let map fn args = Map (args, fn)
 let const v = Const v
 
 let rec ctor : type a. a arg -> a = function
-  | Net device -> begin
-      match Net.connect device with
+  | Net device ->
+      begin match Net.connect device with
       | Ok (t, cfg) -> (t, cfg)
       | Error (`Msg msg) -> failwithf "%s." msg
-    end
-  | Block device -> begin
-      match Block.connect device with
+      end
+  | Block device ->
+      begin match Block.connect device with
       | Ok t -> t
       | Error (`Msg msg) -> failwithf "%s." msg
-    end
+      end
   | Const v -> v
   | Map (args, fn) -> go (fun fn -> fn ()) args fn
 

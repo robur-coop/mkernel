@@ -57,11 +57,11 @@
     necessarily call {!val:run}:
 
     {[
-      let () =
-        Mkernel.(run []) @@ fun () ->
-        let prm = Miou.async @@ fun () -> print_endline "Hello World!" in
-        Mkernel.sleep 1_000_000_000;
-        Miou.await_exn prm
+    let () =
+      Mkernel.(run []) @@ fun () ->
+      let prm = Miou.async @@ fun () -> print_endline "Hello World!" in
+      Mkernel.sleep 1_000_000_000;
+      Miou.await_exn prm
     ]}
 
     All functions available through the Miou module work when implementing a
@@ -443,22 +443,22 @@ val sleep : int -> unit
     with block devices (see {!module:Block}).
 
     {[
-      let fs ~name =
-        let open Mkernel in
-        map [ block name ] @@ fun blk () -> Fat32.of_solo5_block blk
+    let fs ~name =
+      let open Mkernel in
+      map [ block name ] @@ fun blk () -> Fat32.of_solo5_block blk
     ]}
 
     Mkernel acquires these devices, performs the transformations requested by
     the user and returns the results:
 
     {[
-      let () =
-        Mkernel.(run [ fs ~name:"disk.img" ]) @@ fun fat32 () ->
-        let file_txt = Fat32.openfile fat32 "file.txt" in
-        let finally () = Fat32.close file_txt in
-        Fun.protect ~finally @@ fun () ->
-        let line = Fat32.read_line file_txt in
-        print_endline line
+    let () =
+      Mkernel.(run [ fs ~name:"disk.img" ]) @@ fun fat32 () ->
+      let file_txt = Fat32.openfile fat32 "file.txt" in
+      let finally () = Fat32.close file_txt in
+      Fun.protect ~finally @@ fun () ->
+      let line = Fat32.read_line file_txt in
+      print_endline line
     ]}
 
     Finally, it executes the code given by the user. The user can therefore
@@ -472,9 +472,9 @@ type 'a arg
     instance:
 
     {[
-      let () =
-        Mkernel.(run [ block "disk.img" ]) @@ fun _blk () ->
-        print_endline "Hello World!"
+    let () =
+      Mkernel.(run [ block "disk.img" ]) @@ fun _blk () ->
+      print_endline "Hello World!"
     ]} *)
 type ('k, 'res) devices =
   | [] : (unit -> 'res, 'res) devices
@@ -514,9 +514,9 @@ val map : 'f -> ('f, 'a) devices -> 'a arg
     device:
 
     {[
-      let tcpip ~name : Tcpip.t Mkernel.arg =
-        Mkernel.(map [ net name ]) @@ fun ((net : Mkernel.Net.t), cfg) () ->
-        Tcpip.of_net_device net
+    let tcpip ~name : Tcpip.t Mkernel.arg =
+      Mkernel.(map [ net name ]) @@ fun ((net : Mkernel.Net.t), cfg) () ->
+      Tcpip.of_net_device net
     ]} *)
 
 val const : 'a -> 'a arg
