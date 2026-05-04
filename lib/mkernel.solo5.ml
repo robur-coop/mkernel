@@ -502,6 +502,20 @@ let wait_for ~block =
    only limited by the OCaml code that has to handle incoming packets. Packet
    writing, on the other hand, is direct. *)
 
+let t0 = ref 0
+let t1 = ref 0
+
+let yield () =
+  if !t1 - !t0 > 100_000_000 then begin
+    t0 := clock_monotonic ();
+    t1 := clock_monotonic ();
+    true
+  end
+  else begin
+    t1 := clock_monotonic ();
+    false
+  end
+
 let select ~block cancelled_syscalls =
   clean domain cancelled_syscalls;
   let handles = ref 0 in
@@ -519,20 +533,18 @@ let select ~block cancelled_syscalls =
         handles := miou_solo5_yield deadline;
         Hook.run ();
         if !handles == 0 then go signals else signals
-    | Yield ->
-        (* Miou still has work to do but asks if there are any events. We ask
-           Solo5 if there are any and return the possible signals to Miou. *)
-        (* handles := miou_solo5_yield 0; *)
-        (* It should be noted here that we can set the Miou scheduler as [lwt].
-           It also seems that from a performance point of view, it is more
-           interesting to "let" Miou finish all tasks at suspension points
-           rather than observing events regularly. This decreases the
-           availability of the unikernel but improves performance.
+    | Yield when yield () ->
+        (* Please note, this part is extremely important. [solo5_yield] can be
+           very costly. The idea is to synchronise with our TCP stack and call
+           [solo5_yield] every 100ms. It should be noted that solo5_yield with
+           [0] is non-blocking.
 
-           One option might be to force event monitoring according to the [utcp]
-           timer (every 100ms) in order to increase availability without
-           significantly impacting performance. TODO *)
-        signals
+           The aim is still to catch up on a few events (even if Miou has work
+           to do and/or if sleepers are active) ideally every 100ms. *)
+        handles := miou_solo5_yield 0;
+        Hook.run ();
+        if !handles == 0 then go signals else signals
+    | Yield -> signals
     | Sleep until ->
         (* We have a sleeper that is still active and will have to wait a while
            before consuming it. In the meantime, we take action on the block
@@ -570,16 +582,16 @@ let map fn args = Map (args, fn)
 let const v = Const v
 
 let rec ctor : type a. a arg -> a = function
-  | Net device -> begin
-      match Net.connect device with
+  | Net device ->
+      begin match Net.connect device with
       | Ok (t, cfg) -> (t, cfg)
       | Error (`Msg msg) -> failwithf "%s." msg
-    end
-  | Block device -> begin
-      match Block.connect device with
+      end
+  | Block device ->
+      begin match Block.connect device with
       | Ok t -> t
       | Error (`Msg msg) -> failwithf "%s." msg
-    end
+      end
   | Const v -> v
   | Map (args, fn) -> go (fun fn -> fn ()) args fn
 
