@@ -2,7 +2,7 @@
  (name mkernel)
  (public_name mkernel)
  (modules mkernel)
- (libraries jsont jsont.bytesrw bstr logs miou)
+ (libraries ptime jsont jsont.bytesrw bstr logs miou)
  (flags
   (:standard -no-keep-locs))
  (wrapped false)
@@ -12,12 +12,12 @@
 
 (rule
  (target mkernel.ml)
- (deps mkernel.unikraft.ml mkernel.solo5.ml mkernel.default.ml)
+ (deps mkernel.solo5.ml mkernel.default.ml)
  (action
   (copy mkernel.%{context_name}.ml %{target})))
 
 (rule
  (target stubs.c)
- (deps stubs.unikraft.c stubs.solo5.c stubs.default.c)
+ (deps stubs.solo5.c stubs.default.c)
  (action
   (copy stubs.%{context_name}.c %{target})))

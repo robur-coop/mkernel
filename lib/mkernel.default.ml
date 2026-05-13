@@ -64,6 +64,7 @@ external clock_wall : unit -> (int[@untagged])
 [@@noalloc]
 
 let sleep _ = assert false
+let wakeup ~at:_ = assert false
 
 type 'a arg =
   | Args : ('k, 'res) devices -> 'a arg
