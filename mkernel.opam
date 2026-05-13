@@ -18,6 +18,7 @@ depends: [
   "dune"  {>= "3.0"}
   "bstr"
   "miou"  {>= "0.5.2"}
+  "ptime"
   "solo5"
   "logs"
   "jsont"
