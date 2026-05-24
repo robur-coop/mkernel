@@ -93,6 +93,14 @@ external miou_solo5_malloc_trim : unit -> bool
   = "unimplemented" "miou_solo5_malloc_trim"
 [@@noalloc]
 
+external clock_monotonic : unit -> (int[@untagged])
+  = "unimplemented" "miou_solo5_clock_monotonic"
+[@@noalloc]
+
+external clock_wall : unit -> (int[@untagged])
+  = "unimplemented" "miou_solo5_clock_wall"
+[@@noalloc]
+
 (* End of the unsafe part. Come back to the OCaml world! *)
 
 external unsafe_get_int64_ne : bytes -> int -> int64 = "%caml_bytes_get64u"
@@ -191,14 +199,91 @@ module Handles = struct
     t.contents <- contents
 end
 
-type elt = { time: int; syscall: Miou.syscall; mutable cancelled: bool }
+type monotonic = { time: int; syscall: Miou.syscall; mutable cancelled: bool }
+type wall = { date: Ptime.t; syscall: Miou.syscall; mutable cancelled: bool }
 
-module Heapq = Miou.Pqueue.Make (struct
-  type t = elt
+module Msleepers = struct
+  include Miou.Pqueue.Make (struct
+    type t = monotonic
+  
+    let dummy = { time= 0; syscall= Obj.magic (); cancelled= false }
+    let compare { time= a; _ } { time= b; _ } = Int.compare a b
+  end)
 
-  let dummy = { time= 0; syscall= Obj.magic (); cancelled= false }
-  let compare { time= a; _ } { time= b; _ } = Int.compare a b
-end)
+  let rec sleeper t =
+    match find_min_exn t with
+    | exception Empty -> None
+    | { cancelled= true; _ } ->
+      delete_min_exn t;
+      sleeper t
+    | { time; _ } -> Some time
+
+  let in_the_past t = t <= 0 || t <= clock_monotonic ()
+
+  let rec collect t signals =
+    match find_min_exn t with
+    | exception Empty -> signals
+    | { cancelled= true; _ } ->
+      delete_min_exn t;
+      collect t signals
+    | { time; syscall; _ } when in_the_past time ->
+      delete_min_exn t;
+      collect t (Miou.signal syscall :: signals)
+    | _ -> signals
+
+  let clean t uids =
+    let to_delete syscall =
+      let uid = Miou.uid syscall in
+      List.exists (fun uid' -> uid = uid') uids in
+    let fn (({ syscall; _ } : monotonic) as elt) =
+      if to_delete syscall then elt.cancelled <- true in
+    iter fn t
+end
+
+module Wsleepers = struct
+  include Miou.Pqueue.Make (struct
+    type t = wall
+
+    let dummy = { date= Ptime.epoch; syscall= Obj.magic (); cancelled= false }
+    let compare { date= a; _ } { date= b; _ } = Ptime.compare a b
+  end)
+
+  let rec sleeper t =
+    match find_min_exn t with
+    | exception Empty -> None
+    | { cancelled= true; _ } ->
+      delete_min_exn t;
+      sleeper t
+    | { date; _ } ->
+      let time = Ptime.to_float_s date in
+      let time = time *. 10e9 in (* to nanoseconds *)
+      Some (Float.to_int time)
+
+  let in_the_past ~now:than t = Ptime.is_earlier t ~than
+
+  let rec collect ~now t signals =
+    match find_min_exn t with
+    | exception Empty -> signals
+    | { cancelled= true; _ } ->
+      delete_min_exn t;
+      collect ~now t signals
+    | { date; syscall; _ } when in_the_past ~now date ->
+      delete_min_exn t;
+      collect ~now t (Miou.signal syscall :: signals)
+    | _ -> signals
+
+  let collect ~now t signals =
+    if is_empty t then signals
+    else collect ~now:(now ()) t signals
+
+  let clean t uids =
+    let to_delete syscall =
+      let uid = Miou.uid syscall in
+      List.exists (fun uid' -> uid = uid') uids in
+    let fn (({ syscall; _ } : wall) as elt) =
+      if to_delete syscall then elt.cancelled <- true in
+    iter fn t
+end
 
 type action = Rd of arguments | Wr of arguments
 
@@ -213,15 +298,29 @@ and arguments = {
 
 type domain = {
     handles: Miou.syscall list Handles.t
-  ; sleepers: Heapq.t
+  ; wsleepers: Wsleepers.t
+  ; msleepers: Msleepers.t
   ; blocks: action Queue.t
+  ; mutable now: unit -> Ptime.t
 }
 
+let nsec_per_day = Int64.mul 86_400L 1_000_000_000L
+let ps_per_ns = 1_000L
+
 let domain =
+  let now () =
+    let nsec = clock_wall () in
+    let nsec = Int64.of_int nsec in
+    let days = Int64.div nsec nsec_per_day in
+    let rem_ns = Int64.rem nsec nsec_per_day in
+    let rem_ps = Int64.mul rem_ns ps_per_ns in
+    Ptime.v (Int64.to_int days, rem_ps) in
   {
     handles= Handles.create 0x100
-  ; sleepers= Heapq.create ()
+  ; wsleepers= Wsleepers.create ()
+  ; msleepers= Msleepers.create ()
   ; blocks= Queue.create ()
+  ; now
   }
 
 let blocking_read fd =
@@ -387,44 +486,32 @@ module Hook = struct
   let run () = Miou.Sequence.iter ~f:(fun fn -> fn ()) hooks
 end
 
-external clock_monotonic : unit -> (int[@untagged])
-  = "unimplemented" "miou_solo5_clock_monotonic"
-[@@noalloc]
-
-external clock_wall : unit -> (int[@untagged])
-  = "unimplemented" "miou_solo5_clock_wall"
-[@@noalloc]
-
-let now = ref clock_monotonic
-
 let sleep until =
   let syscall = Miou.syscall () in
-  let elt = { time= !now () + until; syscall; cancelled= false } in
-  Heapq.insert elt domain.sleepers;
+  let elt = { time= clock_monotonic () + until; syscall; cancelled= false } in
+  Msleepers.insert elt domain.msleepers;
+  Miou.suspend syscall
+
+let wakeup ~at:date =
+  let syscall = Miou.syscall () in
+  let elt = { date; syscall; cancelled= false } in
+  Wsleepers.insert elt domain.wsleepers;
   Miou.suspend syscall
 
 (* poll part of Mkernel *)
 
-let rec sleeper () =
-  match Heapq.find_min_exn domain.sleepers with
-  | exception Heapq.Empty -> None
-  | { cancelled= true; _ } ->
-      Heapq.delete_min_exn domain.sleepers;
-      sleeper ()
-  | { time; _ } -> Some time
+let sleeper () =
+  let w = Wsleepers.sleeper domain.wsleepers in
+  let m = Msleepers.sleeper domain.msleepers in
+  match w, m with
+  | Some time, None | None, Some time -> Some time
+  | None, None -> None
+  | Some t0, Some t1 -> if t0 < t1 then Some t0 else Some t1
 
-let in_the_past t = t == 0 || t <= !now ()
-
-let rec collect_sleepers domain signals =
-  match Heapq.find_min_exn domain.sleepers with
-  | exception Heapq.Empty -> signals
-  | { cancelled= true; _ } ->
-      Heapq.delete_min_exn domain.sleepers;
-      collect_sleepers domain signals
-  | { time; syscall; _ } when in_the_past time ->
-      Heapq.delete_min_exn domain.sleepers;
-      collect_sleepers domain (Miou.signal syscall :: signals)
-  | _ -> signals
+let collect_sleepers signals =
+  signals
+  |> Wsleepers.collect ~now:domain.now domain.wsleepers
+  |> Msleepers.collect domain.msleepers
 
 let collect_handles ~handles domain signals =
   let fn acc (handle, syscalls) =
@@ -457,16 +544,14 @@ let clean domain uids =
     | [] -> None
     | syscalls -> Some (handle, syscalls)
   in
-  let fn1 (({ syscall; _ } : elt) as elt) =
-    if to_delete syscall then elt.cancelled <- true
-  in
-  let fn2 = function
+  let fn1 = function
     | Rd ({ syscall; _ } as elt) | Wr ({ syscall; _ } as elt) ->
         if to_delete syscall then elt.cancelled <- true
   in
   Handles.filter_map fn0 domain.handles;
-  Heapq.iter fn1 domain.sleepers;
-  Queue.iter fn2 domain.blocks
+  Queue.iter fn1 domain.blocks;
+  Wsleepers.clean domain.wsleepers uids;
+  Msleepers.clean domain.msleepers uids
 
 external miou_solo5_yield : (int[@untagged]) -> (int[@untagged])
   = "unimplemented" "miou_solo5_yield"
@@ -479,7 +564,7 @@ let wait_for ~block =
   | None, true -> Infinity
   | (None | Some _), false -> Yield
   | Some point, true ->
-      let until = point - !now () in
+      let until = point - clock_monotonic () in
       if until < 0 then Yield else Sleep until
 
 (* The behaviour of our select is a little different from what we're used to
@@ -551,9 +636,9 @@ let select ~block cancelled_syscalls =
            devices and repeat our [select] if Solo5 tells us that there are no
            events ([handle == 0]). *)
         let until = if Queue.is_empty domain.blocks then until else 0 in
-        let t0 = !now () in
+        let t0 = clock_monotonic () in
         let signals = consume_block domain signals in
-        let t1 = !now () in
+        let t1 = clock_monotonic () in
         let deadline = t1 + (until - (t1 - t0)) in
         handles := miou_solo5_yield deadline;
         Hook.run ();
@@ -562,7 +647,7 @@ let select ~block cancelled_syscalls =
   let signals = consume_block domain [] in
   let signals = go signals in
   let signals = collect_handles ~handles:!handles domain signals in
-  collect_sleepers domain signals
+  collect_sleepers signals
 
 let events _domain = { Miou.interrupt= ignore; select; finaliser= ignore }
 
@@ -609,8 +694,8 @@ let trim () =
   let trimmed = miou_solo5_malloc_trim () in
   Log.debug (fun m -> m "dlmalloc trimmed: %b" trimmed)
 
-let run ?now:clock ?g devices fn =
-  Option.iter (fun fn -> now := fn) clock;
+let run ?now:wclock ?g devices fn =
+  Option.iter (fun fn -> domain.now <- fn) wclock;
   let alarm = Gc.create_alarm trim in
   let finally () = Gc.delete_alarm alarm in
   Fun.protect ~finally @@ fun () ->

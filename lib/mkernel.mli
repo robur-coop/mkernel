@@ -430,8 +430,43 @@ val clock_wall : unit -> int
     This operation is atomic. In other words, it does not give the scheduler the
     opportunity to execute another task. *)
 
+(** {3 Sleepers.}
+
+    By default, a unikernel has two sources for obtaining the current time: the
+    so-called {i monotonic} clock and the host ({i wall}) system clock. The
+    first is derived from a calculation based on the CPU frequency and the
+    number of instructions consumed by the unikernel. The second is obtained via
+    a "hypercall", meaning we exit the unikernel, request the time from the host
+    system, and return to the unikernel with the result.
+
+    The advantage of the first method is that obtaining the result does not
+    involve any hypercalls (and therefore a switch between the unikernel and the
+    host system) and is therefore {i faster}. Its disadvantage is that for very
+    long periods (more than a day), the clock may {i drift} and no longer be
+    correctly aligned with the host system's time (for the simple reason that
+    your CPU's frequency fluctuates over time), and this {i drift} increases
+    over time!
+
+    The disadvantage of the second method is that it involves a hypercall, which
+    has a significant cost. The advantage, however, is that the result is truly
+    up-to-date relative to your host system (which implies that your host system
+    is synchronised). If you need to wait several days, to avoid a possible
+    {i drift}, it is preferable to use this clock.
+
+    To this end, [Mkernel] offers two functions, {!val:sleep} and {!val:wakeup}.
+    The first creates a suspension that references the monotonically increasing
+    clock to determine {i when} to resume. The second creates a suspension that
+    references the host system's clock to determine {i when} to resume. In this
+    regard, if you wish to wait less than a day (such as 500 milliseconds), it
+    is advisable to use {!val:sleep}. If you wish to wake up a process at a
+    specific time (such as, for example, to renew an expired certificate), it is
+    advisable to use {!val:wakeup}. *)
+
 val sleep : int -> unit
 (** [sleep ns] blocks (suspends) the current task for [ns] nanoseconds. *)
+
+val wakeup : at:Ptime.t -> unit
+(** [wakeup ~at] blocks (suspends) the current task up to [at]. *)
 
 (** {2 The first entry-point of an unikernels.}
 
@@ -524,5 +559,5 @@ val const : 'a -> 'a arg
 (** [const v] always returns [v]. *)
 
 val run :
-  ?now:(unit -> int) -> ?g:Random.State.t -> ('a, 'b) devices -> 'a -> 'b
+  ?now:(unit -> Ptime.t) -> ?g:Random.State.t -> ('a, 'b) devices -> 'a -> 'b
 (** The first entry-point of an unikernel with Solo5 and Miou. *)
