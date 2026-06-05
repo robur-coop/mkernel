@@ -256,7 +256,7 @@ module Wsleepers = struct
       sleeper t
     | { date; _ } ->
       let time = Ptime.to_float_s date in
-      let time = time *. 10e9 in (* to nanoseconds *)
+      let time = time *. 1e9 in (* NOTE(dinosaure): to nanoseconds *)
       Some (Float.to_int time)
 
   let in_the_past ~now:than t = Ptime.is_earlier t ~than
@@ -503,8 +503,10 @@ let wakeup ~at:date =
 let sleeper () =
   let w = Wsleepers.sleeper domain.wsleepers in
   let m = Msleepers.sleeper domain.msleepers in
+  let w = Option.map (fun point -> point - clock_wall ()) w in
+  let m = Option.map (fun point -> point - clock_monotonic ()) m in
   match w, m with
-  | Some time, None | None, Some time -> Some time
+  | Some until, None | None, Some until -> Some until
   | None, None -> None
   | Some t0, Some t1 -> if t0 < t1 then Some t0 else Some t1
 
@@ -563,9 +565,7 @@ let wait_for ~block =
   match (sleeper (), block) with
   | None, true -> Infinity
   | (None | Some _), false -> Yield
-  | Some point, true ->
-      let until = point - clock_monotonic () in
-      if until < 0 then Yield else Sleep until
+  | Some until, true -> if until < 0 then Yield else Sleep until
 
 (* The behaviour of our select is a little different from what we're used to
    seeing. Currently, only a read on a net device can produce a necessary
