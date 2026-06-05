@@ -1,5 +1,4 @@
 let _1s = 1_000_000_000
-
 let nsec_per_day = Int64.mul 86_400L 1_000_000_000L
 let ps_per_ns = 1_000L
 
@@ -20,5 +19,4 @@ let () =
   Mkernel.wakeup ~at;
   let t1 = now () in
   assert (Ptime.(Span.to_int_s (diff t1 t0)) = Some 1);
-  print_endline "World";
-
+  print_endline "World"

@@ -2,11 +2,7 @@
  (name sleep)
  (modules sleep)
  (modes native)
- (link_flags
-  :standard
-  -linkall
-  -cclib
-  "-z solo5-abi=hvt")
+ (link_flags :standard -linkall -cclib "-z solo5-abi=hvt")
  (libraries mkernel)
  (foreign_stubs
   (language c)
@@ -16,11 +12,7 @@
  (name schedule)
  (modules schedule)
  (modes native)
- (link_flags
-  :standard
-  -linkall
-  -cclib
-  "-z solo5-abi=hvt")
+ (link_flags :standard -linkall -cclib "-z solo5-abi=hvt")
  (libraries mkernel)
  (foreign_stubs
   (language c)
@@ -30,11 +22,7 @@
  (name block)
  (modules block)
  (modes native)
- (link_flags
-  :standard
-  -linkall
-  -cclib
-  "-z solo5-abi=hvt")
+ (link_flags :standard -linkall -cclib "-z solo5-abi=hvt")
  (libraries mkernel cmdliner fmt cachet hxd.core hxd.string)
  (foreign_stubs
   (language c)
@@ -151,7 +139,8 @@
   (write-file manifest.cmdline.c "")))
 
 (cram
- (enabled_if (= %{context_name} "solo5"))
+ (enabled_if
+  (= %{context_name} "solo5"))
  (package mkernel)
  (applies_to solo5)
  (deps sleep.exe schedule.exe block.exe simple.txt cmdline.exe))
