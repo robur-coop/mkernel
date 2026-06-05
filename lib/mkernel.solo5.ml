@@ -205,7 +205,7 @@ type wall = { date: Ptime.t; syscall: Miou.syscall; mutable cancelled: bool }
 module Msleepers = struct
   include Miou.Pqueue.Make (struct
     type t = monotonic
-  
+
     let dummy = { time= 0; syscall= Obj.magic (); cancelled= false }
     let compare { time= a; _ } { time= b; _ } = Int.compare a b
   end)
@@ -213,9 +213,7 @@ module Msleepers = struct
   let rec sleeper t =
     match find_min_exn t with
     | exception Empty -> None
-    | { cancelled= true; _ } ->
-      delete_min_exn t;
-      sleeper t
+    | { cancelled= true; _ } -> delete_min_exn t; sleeper t
     | { time; _ } -> Some time
 
   let in_the_past t = t <= 0 || t <= clock_monotonic ()
@@ -223,20 +221,20 @@ module Msleepers = struct
   let rec collect t signals =
     match find_min_exn t with
     | exception Empty -> signals
-    | { cancelled= true; _ } ->
-      delete_min_exn t;
-      collect t signals
+    | { cancelled= true; _ } -> delete_min_exn t; collect t signals
     | { time; syscall; _ } when in_the_past time ->
-      delete_min_exn t;
-      collect t (Miou.signal syscall :: signals)
+        delete_min_exn t;
+        collect t (Miou.signal syscall :: signals)
     | _ -> signals
 
   let clean t uids =
     let to_delete syscall =
       let uid = Miou.uid syscall in
-      List.exists (fun uid' -> uid = uid') uids in
+      List.exists (fun uid' -> uid = uid') uids
+    in
     let fn (({ syscall; _ } : monotonic) as elt) =
-      if to_delete syscall then elt.cancelled <- true in
+      if to_delete syscall then elt.cancelled <- true
+    in
     iter fn t
 end
 
@@ -251,37 +249,35 @@ module Wsleepers = struct
   let rec sleeper t =
     match find_min_exn t with
     | exception Empty -> None
-    | { cancelled= true; _ } ->
-      delete_min_exn t;
-      sleeper t
+    | { cancelled= true; _ } -> delete_min_exn t; sleeper t
     | { date; _ } ->
-      let time = Ptime.to_float_s date in
-      let time = time *. 1e9 in (* NOTE(dinosaure): to nanoseconds *)
-      Some (Float.to_int time)
+        let time = Ptime.to_float_s date in
+        let time = time *. 1e9 in
+        (* NOTE(dinosaure): to nanoseconds *)
+        Some (Float.to_int time)
 
   let in_the_past ~now:than t = Ptime.is_earlier t ~than
 
   let rec collect ~now t signals =
     match find_min_exn t with
     | exception Empty -> signals
-    | { cancelled= true; _ } ->
-      delete_min_exn t;
-      collect ~now t signals
+    | { cancelled= true; _ } -> delete_min_exn t; collect ~now t signals
     | { date; syscall; _ } when in_the_past ~now date ->
-      delete_min_exn t;
-      collect ~now t (Miou.signal syscall :: signals)
+        delete_min_exn t;
+        collect ~now t (Miou.signal syscall :: signals)
     | _ -> signals
 
   let collect ~now t signals =
-    if is_empty t then signals
-    else collect ~now:(now ()) t signals
+    if is_empty t then signals else collect ~now:(now ()) t signals
 
   let clean t uids =
     let to_delete syscall =
       let uid = Miou.uid syscall in
-      List.exists (fun uid' -> uid = uid') uids in
+      List.exists (fun uid' -> uid = uid') uids
+    in
     let fn (({ syscall; _ } : wall) as elt) =
-      if to_delete syscall then elt.cancelled <- true in
+      if to_delete syscall then elt.cancelled <- true
+    in
     iter fn t
 end
 
@@ -314,7 +310,8 @@ let domain =
     let days = Int64.div nsec nsec_per_day in
     let rem_ns = Int64.rem nsec nsec_per_day in
     let rem_ps = Int64.mul rem_ns ps_per_ns in
-    Ptime.v (Int64.to_int days, rem_ps) in
+    Ptime.v (Int64.to_int days, rem_ps)
+  in
   {
     handles= Handles.create 0x100
   ; wsleepers= Wsleepers.create ()
@@ -505,7 +502,7 @@ let sleeper () =
   let m = Msleepers.sleeper domain.msleepers in
   let w = Option.map (fun point -> point - clock_wall ()) w in
   let m = Option.map (fun point -> point - clock_monotonic ()) m in
-  match w, m with
+  match (w, m) with
   | Some until, None | None, Some until -> Some until
   | None, None -> None
   | Some t0, Some t1 -> if t0 < t1 then Some t0 else Some t1
