@@ -271,12 +271,9 @@ module Wsleepers = struct
     if is_empty t then signals else collect ~now:(now ()) t signals
 
   let clean t uids =
-    let to_delete syscall =
-      let uid = Miou.uid syscall in
-      List.exists (fun uid' -> uid = uid') uids
-    in
+    let to_delete uid = List.exists (fun uid' -> uid = uid') uids in
     let fn (({ syscall; _ } : wall) as elt) =
-      if to_delete syscall then elt.cancelled <- true
+      if to_delete (Miou.uid syscall) then elt.cancelled <- true
     in
     iter fn t
 end
