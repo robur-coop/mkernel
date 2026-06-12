@@ -684,7 +684,6 @@ and go : type k res. ((unit -> res) -> res) -> (k, res) devices -> k -> res =
         go run devices r
 
 let trim () =
-  Gc.compact ();
   let trimmed = miou_solo5_malloc_trim () in
   Log.debug (fun m -> m "dlmalloc trimmed: %b" trimmed)
 
