@@ -19,11 +19,13 @@ depends: [
   "bstr"
   "miou"  {>= "0.5.2"}
   "ptime"
-  "solo5"
+  "solo5" {os != "macos"}
+  "solo5-cross-aarch64" {os = "macos"}
   "logs"
   "jsont"
   "bytesrw"
-  "ocaml-solo5"
+  "ocaml-solo5" {os != "macos"}
+  "ocaml-solo5-cross-aarch64" {os = "macos"}
   "hxd" {with-test}
   "fmt" {with-test}
   "cachet" {with-test}
