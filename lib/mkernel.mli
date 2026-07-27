@@ -501,6 +501,9 @@ val wakeup : at:Ptime.t -> unit
     “build-up” complex systems (such as a TCP/IP stack from a net-device, or a
     file system from a block-device using the {!val:map} function). *)
 
+val heap_size : unit -> int
+(** [heap_size ()] returns the heap size in bytes. *)
+
 type 'a arg
 (** ['a arg] knows the type of an argument given to {!val:run}. *)
 

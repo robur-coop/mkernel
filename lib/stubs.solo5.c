@@ -137,8 +137,7 @@ intnat miou_solo5_clock_wall(__unit()) { return (solo5_clock_wall()); }
 
 extern int malloc_trim(size_t);
 
-CAMLprim value
-miou_solo5_malloc_trim(__unit()) {
+CAMLprim value miou_solo5_malloc_trim(__unit()) {
   return (Val_bool(malloc_trim(0)));
 }
 
@@ -171,11 +170,16 @@ static char *split(const char *s, char *dst[], size_t len) {
   return str;
 }
 
+static size_t heap_size = 0;
+
+size_t miou_solo5_heap_size(__unit()) { return (heap_size); }
+
 int solo5_app_main(const struct solo5_start_info *si) {
   char *cmdline[64] = {NULL};
   cmdline[0] = "uniker.ml";
 
   _nolibc_init(si->heap_start, si->heap_size);
+  heap_size = si->heap_size;
   char *tmp = split(si->cmdline, cmdline + 1, 62);
   caml_startup(cmdline);
   free(tmp);

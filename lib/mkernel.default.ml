@@ -65,6 +65,7 @@ external clock_wall : unit -> (int[@untagged])
 
 let sleep _ = assert false
 let wakeup ~at:_ = assert false
+let heap_size = Fun.const 0
 
 type 'a arg =
   | Args : ('k, 'res) devices -> 'a arg
