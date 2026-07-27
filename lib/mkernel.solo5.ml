@@ -101,6 +101,10 @@ external clock_wall : unit -> (int[@untagged])
   = "unimplemented" "miou_solo5_clock_wall"
 [@@noalloc]
 
+external heap_size : unit -> (int[@untagged])
+  = "unimplemented" "miou_solo5_heap_size"
+[@@noalloc]
+
 (* End of the unsafe part. Come back to the OCaml world! *)
 
 external unsafe_get_int64_ne : bytes -> int -> int64 = "%caml_bytes_get64u"
