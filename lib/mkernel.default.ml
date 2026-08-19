@@ -90,7 +90,8 @@ and ('k, 'res) devices =
 
 let net name = Net name
 let block name = Block name
-let map ~finally:_ _fn args = Args args
+let map _fn args = Args args
+let finally _fn arg = arg
 let const _ = Args []
 
 type t = [ `Block of string | `Net of string ]
