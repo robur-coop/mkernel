@@ -9,7 +9,7 @@ let cachet_of_block ~cachesize blk () =
 
 let cachet ~cachesize name =
   let open Mkernel in
-  map (cachet_of_block ~cachesize) [ block name ]
+  map ~finally:ignore (cachet_of_block ~cachesize) [ block name ]
 
 let () =
   Mkernel.(run [ cachet ~cachesize:512 "0" ]) @@ fun blk () ->
