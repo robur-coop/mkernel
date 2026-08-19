@@ -375,11 +375,11 @@ module Block : sig
       As far as operations on scheduled block-devices are concerned, here's a
       description of when Miou performs these operations.
 
-      As soon as Miou tries to observe possible events (such as the reception of
-      a packet - see {!val:Net.read}), it also performs a (single) block-device
-      operation. If Miou still has time (such as waiting for the end of a
-      {!val:sleep}), it can perform several operations on the block-devices
-      until it runs out of time.
+      As soon as Miou tries to observe possible events (such as the reception
+      of a packet - see {!val:Net.read_bigstring}), it also performs a (single)
+      block-device operation. If Miou still has time (such as waiting for the
+      end of a {!val:sleep}), it can perform several operations on the
+      block-devices until it runs out of time.
 
       In short, operations on scheduled block-devices have the lowest priority.
       A unikernel can't go faster than the operations on waiting block-devices,
