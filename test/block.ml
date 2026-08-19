@@ -4,7 +4,7 @@ let cachet_of_block ~cachesize blk () =
     Mkernel.Block.read blk ~src_off:pos bstr;
     bstr
   in
-  let pagesize = Mkernel.Block.pagesize blk in
+  let pagesize = Mkernel.Block.sector_size blk in
   Cachet.make ~cachesize ~pagesize ~map blk
 
 let cachet ~cachesize name =
@@ -13,21 +13,21 @@ let cachet ~cachesize name =
 
 let () =
   Mkernel.(run [ cachet ~cachesize:512 "0" ]) @@ fun blk () ->
-  let pagesize = Cachet.pagesize blk in
+  let sector_size = Cachet.pagesize blk in
   let prm =
     Miou.async @@ fun () ->
-    let bstr = Bigarray.(Array1.create char c_layout (2 * pagesize)) in
+    let bstr = Bigarray.(Array1.create char c_layout (2 * sector_size)) in
     let blk = Cachet.fd blk in
-    Mkernel.Block.atomic_read blk ~src_off:0 ~dst_off:pagesize bstr;
+    Mkernel.Block.atomic_read blk ~src_off:0 ~dst_off:sector_size bstr;
     let bstr = Cachet.Bstr.of_bigstring bstr in
-    let str = Cachet.Bstr.sub_string ~off:pagesize ~len:pagesize bstr in
+    let str = Cachet.Bstr.sub_string ~off:sector_size ~len:sector_size bstr in
     let hash = Digest.string str in
     Fmt.pr "%08x: %s\n%!" 0 (Digest.to_hex hash)
   in
   Miou.await_exn prm;
-  let str = Cachet.get_string blk pagesize ~len:pagesize in
+  let str = Cachet.get_string blk sector_size ~len:sector_size in
   let hash = Digest.string str in
-  Fmt.pr "%08x: %s\n%!" pagesize (Digest.to_hex hash)
+  Fmt.pr "%08x: %s\n%!" sector_size (Digest.to_hex hash)
 
 (*
 open Cmdliner
