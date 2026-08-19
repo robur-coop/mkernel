@@ -582,8 +582,7 @@ val map : 'f -> ('f, 'a) devices -> 'a arg
 
     {[
       let tcpip ~name : Tcpip.t Mkernel.arg =
-        let finally tcpip = Tcpip.kill tcpip in
-        Mkernel.finally finally
+        Mkernel.finally Tcpip.kill
         @@ Mkernel.(map [ net name ])
         @@ fun ((net : Mkernel.Net.t), cfg) () ->
         Tcpip.of_net_device net
