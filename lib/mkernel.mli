@@ -592,11 +592,12 @@ val map : 'f -> ('f, 'a) devices -> 'a arg
     a TCP/IP stack), OCaml resources (such as background tasks) may be involved
     in creating these new devices. It may be useful to attach a {i finaliser} so
     that these resources are released when the unikernel shuts down (or raise an
-    exception). The [finally] function allows you to do this. *)
+    exception). The {!finally} function allows you to do this. *)
 
 val finally : ('a -> unit) -> 'a arg -> 'a arg
 (** [finally fn arg] is [arg] with a finalizer [fn] attached that will run
-    when {!run} returns. *)
+    when {!run} returns. This can be useful in order to kill e.g. background
+    tasks. *)
 
 val const : 'a -> 'a arg
 (** [const v] always returns [v]. *)
