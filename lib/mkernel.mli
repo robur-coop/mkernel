@@ -575,16 +575,24 @@ val block : string -> Block.t arg
 
     The name of the block would be: ["disk"]. *)
 
-val map : 'f -> ('f, 'a) devices -> 'a arg
-(** [map fn devices] provides a means for creating devices using other
+val map : finally:('a -> unit) -> 'f -> ('f, 'a) devices -> 'a arg
+(** [map ~finally fn devices] provides a means for creating devices using other
     [devices]. For example, one might use a TCP/IP stack from a {!val:net}
     device:
 
     {[
-    let tcpip ~name : Tcpip.t Mkernel.arg =
-      Mkernel.(map [ net name ]) @@ fun ((net : Mkernel.Net.t), cfg) () ->
-      Tcpip.of_net_device net
-    ]} *)
+      let tcpip ~name : Tcpip.t Mkernel.arg =
+        let finally tcpip = Tcpip.kill tcpip in
+        Mkernel.(map ~finally [ net name ])
+        @@ fun ((net : Mkernel.Net.t), cfg) () ->
+        Tcpip.of_net_device net
+    ]}
+
+    Whenever a device needs to be derived into something more complex (such as
+    a TCP/IP stack), OCaml resources (such as background tasks) may be involved
+    in creating these new devices. It may be useful to attach a {i finaliser} so
+    that these resources are released when the unikernel shuts down (or raise an
+    exception). The [finally] function allows you to do this. *)
 
 val const : 'a -> 'a arg
 (** [const v] always returns [v]. *)

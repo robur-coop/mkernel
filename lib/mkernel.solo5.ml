@@ -716,7 +716,7 @@ let events _domain = { Miou.interrupt= ignore; select; finaliser= ignore }
 type 'a arg =
   | Net : string -> (Net.t * Net.cfg) arg
   | Block : string -> Block.t arg
-  | Map : ('f, 'a) devices * 'f -> 'a arg
+  | Map : ('f, 'a) devices * ('a -> unit) * 'f -> 'a arg
   | Const : 'a -> 'a arg
 
 and ('k, 'res) devices =
@@ -725,7 +725,7 @@ and ('k, 'res) devices =
 
 let net name = Net name
 let block name = Block name
-let map fn args = Map (args, fn)
+let map ~finally fn args = Map (args, finally, fn)
 let const v = Const v
 
 let rec ctor : type a. a arg -> a = function
@@ -740,7 +740,10 @@ let rec ctor : type a. a arg -> a = function
       | Error (`Msg msg) -> failwithf "%s." msg
       end
   | Const v -> v
-  | Map (args, fn) -> go (fun fn -> fn ()) args fn
+  | Map (args, finally, fn) ->
+    let v = go (fun fn -> fn ()) args fn in
+    let finally () = finally v in
+    Fun.protect ~finally @@ fun () -> v
 
 and go : type k res. ((unit -> res) -> res) -> (k, res) devices -> k -> res =
  fun run -> function
