@@ -740,14 +740,18 @@ let rec ctor : type a. a arg -> a = function
       | Error (`Msg msg) -> failwithf "%s." msg
       end
   | Const v -> v
-  | Map (args, finally, fn) ->
-    let v = go (fun fn -> fn ()) args fn in
-    let finally () = finally v in
-    Fun.protect ~finally @@ fun () -> v
+  | Map (args, _finally, fn) -> go (fun fn -> fn ()) args fn
 
 and go : type k res. ((unit -> res) -> res) -> (k, res) devices -> k -> res =
  fun run -> function
   | [] -> fun fn -> run fn
+  | (Map (args, finally, fn) as arg) :: devices ->
+      let v = ctor arg in
+      let finally () = finally v in
+      fun f ->
+        Fun.protect ~finally @@ fun () ->
+        let r = f v in
+        go run devices r
   | arg :: devices ->
       let v = ctor arg in
       fun f ->
