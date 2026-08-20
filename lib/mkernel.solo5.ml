@@ -120,6 +120,8 @@ type stats = {
   ; mutable tx_bytes: int
 }
 
+type handle = int
+
 let rx_ops { rx_ops; _ } = rx_ops
 let rx_bytes { rx_bytes; _ } = rx_bytes
 let tx_ops { tx_ops; _ } = tx_ops
@@ -140,15 +142,18 @@ module Stats = struct
     stat.tx_ops <- stat.tx_ops + 1;
     stat.tx_bytes <- stat.tx_bytes + len
 
-  let get handle = Array.get _stats handle
+  let get handle = Array.get _stats handle |> Option.get
 
   let all () =
-    Array.fold_left
-      (fun acc -> function None -> acc | Some x -> x :: acc)
-      [] _stats
+    snd
+      (Array.fold_left
+         (fun (i, acc) -> function
+           | None -> (succ i, acc) | Some (x, _) -> (succ i, (i, x) :: acc))
+         (0, []) _stats)
 end
 
 let stats () = Stats.all ()
+let stat handle = snd (Stats.get handle)
 
 module Block_direct = struct
   type t = { handle: int; pagesize: int; len: int }
@@ -487,8 +492,6 @@ module Net = struct
       if len < 0 || off < 0 || off > String.length str - len then
         invalid_arg "Mkernel.Net.write_string: out of bounds";
       go off len
-
-  let stats t = Stats.get t |> Option.get
 end
 
 module Block = struct
@@ -517,8 +520,6 @@ module Block = struct
     let args = { t; bstr; src_off; dst_off; syscall; cancelled= false } in
     let fn () = Queue.push (Wr args) domain.blocks in
     Miou.suspend ~fn syscall
-
-  let stats { handle; _ } = Stats.get handle |> Option.get
 end
 
 module Hook = struct

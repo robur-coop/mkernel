@@ -201,6 +201,9 @@ type bigstring =
 type stats
 (** The type of statistics of devices. *)
 
+type handle
+(** The type of device handle, used for stats. *)
+
 val rx_ops : stats -> int
 (** [rx_ops stats] are the number of read operations of [stats]. *)
 
@@ -213,8 +216,11 @@ val tx_ops : stats -> int
 val tx_bytes : stats -> int
 (** [tx_bytes stats] are the number of write bytes of [stats]. *)
 
-val stats : unit -> (string * stats) list
+val stats : unit -> (handle * string) list
 (** [stats ()] are the statistics of all devices. *)
+
+val stat : handle -> stats
+(** [stat handle] is the statistics of the device [handle]. *)
 
 module Net : sig
   type t
@@ -309,9 +315,6 @@ module Net : sig
       ]}
 
       The name of the block would be: ["service"]. *)
-
-  val stats : t -> string * stats
-  (** [stats t] is the name and statistics for [t]. *)
 end
 
 module Block : sig
@@ -396,9 +399,6 @@ module Block : sig
       ]}
 
       The name of the block would be: ["disk"]. *)
-
-  val stats : t -> string * stats
-  (** [stats t] is the name and statistics for [t]. *)
 end
 
 module Hook : sig

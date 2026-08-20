@@ -2,12 +2,14 @@ type bigstring =
   (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
 
 type stats = unit
+type handle = unit
 
 let rx_ops () = 0
 let rx_bytes () = 0
 let tx_ops () = 0
 let tx_bytes () = 0
 let stats () = []
+let stat _ = ()
 
 let device =
   let open Jsont in
@@ -41,7 +43,6 @@ module Net = struct
   let write_bigstring _t ?off:_ ?len:_ _bstr = assert false
   let write_string _t ?off:_ ?len:_ _str = assert false
   let write_into _t ~len:_ ~fn:_ = assert false
-  let stats _t = assert false
 end
 
 module Block = struct
@@ -54,7 +55,6 @@ module Block = struct
   let atomic_write _t ?src_off:_ ~dst_off:_ _bstr = assert false
   let read _t ~src_off:_ ?dst_off:_ _bstr = assert false
   let write _t ?src_off:_ ~dst_off:_ _bstr = assert false
-  let stats _t = assert false
 end
 
 module Hook = struct
