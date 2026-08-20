@@ -4,6 +4,8 @@
 #include <caml/callback.h>
 #include <caml/memory.h>
 #include <string.h>
+#include <caml/mlvalues.h>
+#include <caml/alloc.h>
 
 /* We currently have no need for these functions. They consist of releasing the
  * GC lock when we do operations with Solo5 with bigstrings, because of the
@@ -131,6 +133,13 @@ intnat miou_solo5_yield(intnat ts) {
 
 intnat miou_solo5_clock_monotonic(__unit()) {
   return (solo5_clock_monotonic());
+}
+
+CAMLprim value
+caml_get_monotonic_time(value v_unit)
+{
+  CAMLparam1(v_unit);
+  CAMLreturn(caml_copy_int64(solo5_clock_monotonic()));
 }
 
 intnat miou_solo5_clock_wall(__unit()) { return (solo5_clock_wall()); }
