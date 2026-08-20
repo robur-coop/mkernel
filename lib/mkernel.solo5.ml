@@ -128,23 +128,29 @@ let tx_bytes { tx_bytes ; _ } = tx_bytes
 module Stats = struct
   let empty = { rx_ops = 0; rx_bytes = 0; tx_ops = 0; tx_bytes = 0 }
 
-  let _stats = Array.make 64 ("", empty)
+  let _stats = Array.make 64 None
 
   let add handle name =
-    Array.set _stats handle (name, empty)
+    Array.set _stats handle (Some (name, empty))
 
   let rx handle len =
-    let (_, stat) = Array.get _stats handle in
+    let (_, stat) = Array.get _stats handle |> Option.get in
     stat.rx_ops <- stat.rx_ops + 1;
     stat.rx_bytes <- stat.rx_bytes + len
 
   let tx handle len =
-    let (_, stat) = Array.get _stats handle in
+    let (_, stat) = Array.get _stats handle |> Option.get in
     stat.tx_ops <- stat.tx_ops + 1;
     stat.tx_bytes <- stat.tx_bytes + len
 
   let get handle = Array.get _stats handle
+
+  let all () =
+    Array.fold_left (fun acc -> function None -> acc | Some x -> x :: acc)
+      [] _stats
 end
+
+let stats () = Stats.all ()
 
 module Block_direct = struct
   type t = { handle: int; pagesize: int; len: int }

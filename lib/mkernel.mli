@@ -213,6 +213,9 @@ val tx_ops : stats -> int
 val tx_bytes : stats -> int
 (** [tx_bytes stats] are the number of write bytes of [stats]. *)
 
+val stats : unit -> (string * stats) list
+(** [stats ()] are the statistics of all devices. *)
+
 module Net : sig
   type t
   (** The type of network interfaces. *)
