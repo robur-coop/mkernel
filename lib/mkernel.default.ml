@@ -100,11 +100,11 @@ let run ?now:_ ?g:_ args _fn =
   | Error str -> prerr_endline str; exit 1
 
 type stat = {
-  heap_words : int;
-  live_words : int;
-  stack_words : int;
-  free_words : int;
+    heap_words: int
+  ; live_words: int
+  ; stack_words: int
+  ; free_words: int
 }
 
 let stat ?quick:_ () =
-  { heap_words = 0 ; live_words = 0 ; stack_words = 0 ; free_words = 0 }
+  { heap_words= 0; live_words= 0; stack_words= 0; free_words= 0 }

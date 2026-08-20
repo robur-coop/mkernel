@@ -105,20 +105,20 @@ external heap_size : unit -> (int[@untagged])
   = "unimplemented" "miou_solo5_heap_size"
 [@@noalloc]
 
-external heap_words : unit -> (int[@untagged]) =
-  "unimplemented" "miou_solo5_get_heap_words"
+external heap_words : unit -> (int[@untagged])
+  = "unimplemented" "miou_solo5_get_heap_words"
 [@@noalloc]
 
-external live_words : unit -> (int[@untagged]) =
-  "unimplemented" "miou_solo5_get_live_words"
+external live_words : unit -> (int[@untagged])
+  = "unimplemented" "miou_solo5_get_live_words"
 [@@noalloc]
 
-external fast_live_words : unit -> (int[@untagged]) =
-  "unimplemented" "miou_solo5_get_fast_live_words"
+external fast_live_words : unit -> (int[@untagged])
+  = "unimplemented" "miou_solo5_get_fast_live_words"
 [@@noalloc]
 
-external stack_words : unit -> (int[@untagged]) =
-  "unimplemented" "miou_solo5_get_stack_words"
+external stack_words : unit -> (int[@untagged])
+  = "unimplemented" "miou_solo5_get_stack_words"
 [@@noalloc]
 
 (* End of the unsafe part. Come back to the OCaml world! *)
@@ -717,14 +717,14 @@ let run ?now:wclock ?g devices fn =
   go run devices fn
 
 type stat = {
-  heap_words : int;
-  live_words : int;
-  stack_words : int;
-  free_words : int;
+    heap_words: int
+  ; live_words: int
+  ; stack_words: int
+  ; free_words: int
 }
 
 let stat ?(quick = true) () =
   let h = heap_words () in
   let l = if quick then fast_live_words () else live_words () in
   let s = stack_words () in
-  { heap_words = h; live_words = l; stack_words = s; free_words = h - l - s }
+  { heap_words= h; live_words= l; stack_words= s; free_words= h - l - s }

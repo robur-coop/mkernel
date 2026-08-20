@@ -566,10 +566,10 @@ val run :
 (** The first entry-point of an unikernel with Solo5 and Miou. *)
 
 type stat = {
-  heap_words : int; (** total number of works allocatable on the heap. *)
-  live_words : int; (** number of allocated words on the heap. *)
-  stack_words : int; (** number of words used by the program stack. *)
-  free_words : int; (** number of free words on the heap. *)
+    heap_words: int  (** total number of works allocatable on the heap. *)
+  ; live_words: int  (** number of allocated words on the heap. *)
+  ; stack_words: int  (** number of words used by the program stack. *)
+  ; free_words: int  (** number of free words on the heap. *)
 }
 (** The type about memory usage as observed by malloc. *)
 
