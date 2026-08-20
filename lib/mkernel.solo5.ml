@@ -491,7 +491,7 @@ module Net = struct
         invalid_arg "Mkernel.Net.write_string: out of bounds";
       go off len
 
-  let stats t = Stats.get t
+  let stats t = Stats.get t |> Option.get
 end
 
 module Block = struct
@@ -521,7 +521,7 @@ module Block = struct
     let fn () = Queue.push (Wr args) domain.blocks in
     Miou.suspend ~fn syscall
 
-  let stats { handle ; _ } = Stats.get handle
+  let stats { handle ; _ } = Stats.get handle |> Option.get
 end
 
 module Hook = struct

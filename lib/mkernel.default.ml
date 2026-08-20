@@ -8,6 +8,8 @@ let rx_bytes () = 0
 let tx_ops () = 0
 let tx_bytes () = 0
 
+let stats () = []
+
 let device =
   let open Jsont in
   let open Object in
