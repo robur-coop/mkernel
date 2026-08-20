@@ -48,7 +48,7 @@ module Net = struct
 end
 
 module Block = struct
-  type t = { handle: int; pagesize: int }
+  type t = { handle: int; sector_size: int }
 
   let sector_size _ = assert false
   let length _ = assert false
