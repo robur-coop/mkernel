@@ -198,6 +198,21 @@
 type bigstring =
   (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
 
+type stats
+(** The type of statistics of devices. *)
+
+val rx_ops : stats -> int
+(** [rx_ops stats] are the number of read operations of [stats]. *)
+
+val rx_bytes : stats -> int
+(** [rx_bytes stats] are the number of read bytes of [stats]. *)
+
+val tx_ops : stats -> int
+(** [tx_ops stats] are the number of write operations of [stats]. *)
+
+val tx_bytes : stats -> int
+(** [tx_bytes stats] are the number of write bytes of [stats]. *)
+
 module Net : sig
   type t
   (** The type of network interfaces. *)
@@ -291,6 +306,9 @@ module Net : sig
       ]}
 
       The name of the block would be: ["service"]. *)
+
+  val stats : t -> string * stats
+  (** [stats t] is the name and statistics for [t]. *)
 end
 
 module Block : sig
@@ -375,6 +393,9 @@ module Block : sig
       ]}
 
       The name of the block would be: ["disk"]. *)
+
+  val stats : t -> string * stats
+  (** [stats t] is the name and statistics for [t]. *)
 end
 
 module Hook : sig
