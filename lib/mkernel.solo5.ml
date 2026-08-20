@@ -114,39 +114,37 @@ let failwithf fmt = Format.kasprintf failwith fmt
 let error_msgf fmt = Format.kasprintf (fun msg -> Error (`Msg msg)) fmt
 
 type stats = {
-  mutable rx_ops : int ;
-  mutable rx_bytes : int ;
-  mutable tx_ops : int ;
-  mutable tx_bytes : int ;
+    mutable rx_ops: int
+  ; mutable rx_bytes: int
+  ; mutable tx_ops: int
+  ; mutable tx_bytes: int
 }
 
-let rx_ops { rx_ops ; _ } = rx_ops
-let rx_bytes { rx_bytes ; _ } = rx_bytes
-let tx_ops { tx_ops ; _ } = tx_ops
-let tx_bytes { tx_bytes ; _ } = tx_bytes
+let rx_ops { rx_ops; _ } = rx_ops
+let rx_bytes { rx_bytes; _ } = rx_bytes
+let tx_ops { tx_ops; _ } = tx_ops
+let tx_bytes { tx_bytes; _ } = tx_bytes
 
 module Stats = struct
-  let empty = { rx_ops = 0; rx_bytes = 0; tx_ops = 0; tx_bytes = 0 }
-
+  let empty = { rx_ops= 0; rx_bytes= 0; tx_ops= 0; tx_bytes= 0 }
   let _stats = Array.make 64 None
-
-  let add handle name =
-    Array.set _stats handle (Some (name, empty))
+  let add handle name = Array.set _stats handle (Some (name, empty))
 
   let rx handle len =
-    let (_, stat) = Array.get _stats handle |> Option.get in
+    let _, stat = Array.get _stats handle |> Option.get in
     stat.rx_ops <- stat.rx_ops + 1;
     stat.rx_bytes <- stat.rx_bytes + len
 
   let tx handle len =
-    let (_, stat) = Array.get _stats handle |> Option.get in
+    let _, stat = Array.get _stats handle |> Option.get in
     stat.tx_ops <- stat.tx_ops + 1;
     stat.tx_bytes <- stat.tx_bytes + len
 
   let get handle = Array.get _stats handle
 
   let all () =
-    Array.fold_left (fun acc -> function None -> acc | Some x -> x :: acc)
+    Array.fold_left
+      (fun acc -> function None -> acc | Some x -> x :: acc)
       [] _stats
 end
 
@@ -389,9 +387,8 @@ module Net = struct
       let result = miou_solo5_net_read t bstr off len read_size in
       match result with
       | 0 ->
-        let len = Int64.to_int (unsafe_get_int64_ne read_size 0) in
-        Stats.rx t len;
-        len
+          let len = Int64.to_int (unsafe_get_int64_ne read_size 0) in
+          Stats.rx t len; len
       | 1 -> blocking_read t; go read_size
       | 2 -> invalid_arg "Mkernel.Net.read"
       | _ -> assert false (* UNSPEC *)
@@ -521,7 +518,7 @@ module Block = struct
     let fn () = Queue.push (Wr args) domain.blocks in
     Miou.suspend ~fn syscall
 
-  let stats { handle ; _ } = Stats.get handle |> Option.get
+  let stats { handle; _ } = Stats.get handle |> Option.get
 end
 
 module Hook = struct

@@ -7,7 +7,6 @@ let rx_ops () = 0
 let rx_bytes () = 0
 let tx_ops () = 0
 let tx_bytes () = 0
-
 let stats () = []
 
 let device =
