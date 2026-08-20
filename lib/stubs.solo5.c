@@ -171,13 +171,16 @@ static char *split(const char *s, char *dst[], size_t len) {
 }
 
 static size_t heap_size = 0;
+static uintptr_t sp_at_start;
 
 size_t miou_solo5_heap_size(__unit()) { return (heap_size); }
 
 int solo5_app_main(const struct solo5_start_info *si) {
   char *cmdline[64] = {NULL};
   cmdline[0] = "uniker.ml";
+  int dummy;
 
+  sp_at_start = (uintptr_t)&dummy;
   _nolibc_init(si->heap_start, si->heap_size);
   heap_size = si->heap_size;
   char *tmp = split(si->cmdline, cmdline + 1, 62);
@@ -185,4 +188,28 @@ int solo5_app_main(const struct solo5_start_info *si) {
   free(tmp);
 
   return (0);
+}
+
+intnat miou_solo5_get_heap_words(value v_unit)
+{
+    return heap_size / sizeof(value);
+}
+
+extern size_t malloc_memory_usage(void);
+
+intnat miou_solo5_get_live_words(value v_unit)
+{
+    struct mallinfo m = mallinfo();
+    return m.uordblks / sizeof(value);
+}
+
+intnat miou_solo5_get_fast_live_words(value v_unit)
+{
+    return malloc_memory_usage() / sizeof(value);
+}
+
+intnat miou_solo5_get_stack_words(value v_unit)
+{
+    int dummy;
+    return (sp_at_start - (uintptr_t)&dummy + 0x100000) / sizeof(value);
 }
