@@ -130,15 +130,15 @@ let tx_bytes { tx_bytes; _ } = tx_bytes
 module Stats = struct
   let empty = { rx_ops= 0; rx_bytes= 0; tx_ops= 0; tx_bytes= 0 }
   let _stats = Array.make 64 None
-  let add handle name = Array.set _stats handle (Some (name, empty))
+  let add handle typ name = Array.set _stats handle (Some (name, typ, empty))
 
   let rx handle len =
-    let _, stat = Array.get _stats handle |> Option.get in
+    let _, _, stat = Array.get _stats handle |> Option.get in
     stat.rx_ops <- stat.rx_ops + 1;
     stat.rx_bytes <- stat.rx_bytes + len
 
   let tx handle len =
-    let _, stat = Array.get _stats handle |> Option.get in
+    let _, _, stat = Array.get _stats handle |> Option.get in
     stat.tx_ops <- stat.tx_ops + 1;
     stat.tx_bytes <- stat.tx_bytes + len
 
@@ -148,12 +148,16 @@ module Stats = struct
     snd
       (Array.fold_left
          (fun (i, acc) -> function
-           | None -> (succ i, acc) | Some (x, _) -> (succ i, (i, x) :: acc))
+           | None -> (succ i, acc)
+           | Some (name, typ, _) -> (succ i, (i, name, typ) :: acc))
          (0, []) _stats)
 end
 
 let stats () = Stats.all ()
-let stat handle = snd (Stats.get handle)
+
+let stat handle =
+  let _, _, s = Stats.get handle in
+  s
 
 module Block_direct = struct
   type t = { handle: int; pagesize: int; len: int }
@@ -170,7 +174,7 @@ module Block_direct = struct
         let handle = Int64.to_int (Bytes.get_int64_ne handle 0) in
         let len = Int64.to_int (Bytes.get_int64_ne len 0) in
         let pagesize = Int64.to_int (Bytes.get_int64_ne pagesize 0) in
-        Stats.add handle name;
+        Stats.add handle "block" name;
         Ok { handle; pagesize; len }
     | errno ->
         error_msgf "Impossible to connect the block-device %s (%d)" name errno
@@ -383,7 +387,7 @@ module Net = struct
         let mac = Bytes.unsafe_to_string mac in
         let handle = Int64.to_int (Bytes.get_int64_ne handle 0) in
         let mtu = Int64.to_int (Bytes.get_int64_ne mtu 0) in
-        Stats.add handle name;
+        Stats.add handle "net" name;
         Ok (handle, { mac; mtu })
     | _ -> error_msgf "Impossible to connect the net-device %s" name
 

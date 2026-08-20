@@ -216,8 +216,9 @@ val tx_ops : stats -> int
 val tx_bytes : stats -> int
 (** [tx_bytes stats] are the number of write bytes of [stats]. *)
 
-val stats : unit -> (handle * string) list
-(** [stats ()] are the statistics of all devices. *)
+val stats : unit -> (handle * string * string) list
+(** [stats ()] are the statistics data for all devices (a triple of handle,
+    name, type). *)
 
 val stat : handle -> stats
 (** [stat handle] is the statistics of the device [handle]. *)
