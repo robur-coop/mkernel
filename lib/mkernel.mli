@@ -198,30 +198,32 @@
 type bigstring =
   (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
 
-type stats
-(** The type of statistics of devices. *)
+module Stats : sig
+  type t
+  (** The type of statistics of a device. *)
 
-type handle
-(** The type of device handle, used for stats. *)
+  type handle
+  (** The type of device handle, used for stats. *)
 
-val rx_ops : stats -> int
-(** [rx_ops stats] are the number of read operations of [stats]. *)
+  val rx_ops : t -> int
+  (** [rx_ops stats] are the number of read operations of [stats]. *)
 
-val rx_bytes : stats -> int
-(** [rx_bytes stats] are the number of read bytes of [stats]. *)
+  val rx_bytes : t -> int
+  (** [rx_bytes stats] are the number of read bytes of [stats]. *)
 
-val tx_ops : stats -> int
-(** [tx_ops stats] are the number of write operations of [stats]. *)
+  val tx_ops : t -> int
+  (** [tx_ops stats] are the number of write operations of [stats]. *)
 
-val tx_bytes : stats -> int
-(** [tx_bytes stats] are the number of write bytes of [stats]. *)
+  val tx_bytes : t -> int
+  (** [tx_bytes stats] are the number of write bytes of [stats]. *)
 
-val stats : unit -> (handle * string * string) list
-(** [stats ()] are the statistics data for all devices (a triple of handle,
-    name, type). *)
+  val devices : unit -> (handle * string * string) list
+  (** [all_devices ()] are the statistics sources for all devices (a triple of
+      handle, name, type). *)
 
-val stat : handle -> stats
-(** [stat handle] is the statistics of the device [handle]. *)
+  val from : handle -> t
+  (** [from handle] is the statistics of the device [handle]. *)
+end
 
 module Net : sig
   type t

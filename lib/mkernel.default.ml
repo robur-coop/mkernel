@@ -1,15 +1,17 @@
 type bigstring =
   (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
 
-type stats = unit
-type handle = unit
+module Stats = struct
+  type t = unit
+  type handle = unit
 
-let rx_ops () = 0
-let rx_bytes () = 0
-let tx_ops () = 0
-let tx_bytes () = 0
-let stats () = []
-let stat _ = ()
+  let rx_ops () = 0
+  let rx_bytes () = 0
+  let tx_ops () = 0
+  let tx_bytes () = 0
+  let devices () = []
+  let from _ = ()
+end
 
 let device =
   let open Jsont in

@@ -113,51 +113,48 @@ let invalid_argf fmt = Format.kasprintf invalid_arg fmt
 let failwithf fmt = Format.kasprintf failwith fmt
 let error_msgf fmt = Format.kasprintf (fun msg -> Error (`Msg msg)) fmt
 
-type stats = {
+module Stats = struct
+  type t = {
     mutable rx_ops: int
   ; mutable rx_bytes: int
   ; mutable tx_ops: int
   ; mutable tx_bytes: int
-}
+  }
 
-type handle = int
+  type handle = int
 
-let rx_ops { rx_ops; _ } = rx_ops
-let rx_bytes { rx_bytes; _ } = rx_bytes
-let tx_ops { tx_ops; _ } = tx_ops
-let tx_bytes { tx_bytes; _ } = tx_bytes
+  let rx_ops { rx_ops; _ } = rx_ops
+  let rx_bytes { rx_bytes; _ } = rx_bytes
+  let tx_ops { tx_ops; _ } = tx_ops
+  let tx_bytes { tx_bytes; _ } = tx_bytes
 
-module Stats = struct
   let empty = { rx_ops= 0; rx_bytes= 0; tx_ops= 0; tx_bytes= 0 }
-  let _stats = Array.make 64 None
-  let add handle typ name = Array.set _stats handle (Some (name, typ, empty))
+  let _dummy = ("", "invalid", empty)
+  let _stats = Array.make 64 _dummy
+  let add handle typ name = Array.set _stats handle (name, typ, empty)
 
   let rx handle len =
-    let _, _, stat = Array.get _stats handle |> Option.get in
+    let _, _, stat = Array.get _stats handle in
     stat.rx_ops <- stat.rx_ops + 1;
     stat.rx_bytes <- stat.rx_bytes + len
 
   let tx handle len =
-    let _, _, stat = Array.get _stats handle |> Option.get in
+    let _, _, stat = Array.get _stats handle in
     stat.tx_ops <- stat.tx_ops + 1;
     stat.tx_bytes <- stat.tx_bytes + len
 
-  let get handle = Array.get _stats handle |> Option.get
+  let from handle =
+    let (_, _, s) = Array.get _stats handle in
+    s
 
-  let all () =
+  let devices () =
     snd
       (Array.fold_left
          (fun (i, acc) -> function
-           | None -> (succ i, acc)
-           | Some (name, typ, _) -> (succ i, (i, name, typ) :: acc))
+           | dummy when dummy == _dummy -> (succ i, acc)
+           | (name, typ, _) -> (succ i, (i, name, typ) :: acc))
          (0, []) _stats)
 end
-
-let stats () = Stats.all ()
-
-let stat handle =
-  let _, _, s = Stats.get handle in
-  s
 
 module Block_direct = struct
   type t = { handle: int; pagesize: int; len: int }
