@@ -129,6 +129,49 @@ let invalid_argf fmt = Format.kasprintf invalid_arg fmt
 let failwithf fmt = Format.kasprintf failwith fmt
 let error_msgf fmt = Format.kasprintf (fun msg -> Error (`Msg msg)) fmt
 
+module Stats = struct
+  type t = {
+    mutable rx_ops: int
+  ; mutable rx_bytes: int
+  ; mutable tx_ops: int
+  ; mutable tx_bytes: int
+  }
+
+  type handle = int
+
+  let rx_ops { rx_ops; _ } = rx_ops
+  let rx_bytes { rx_bytes; _ } = rx_bytes
+  let tx_ops { tx_ops; _ } = tx_ops
+  let tx_bytes { tx_bytes; _ } = tx_bytes
+
+  let empty = { rx_ops= 0; rx_bytes= 0; tx_ops= 0; tx_bytes= 0 }
+  let _dummy = ("", "invalid", empty)
+  let _stats = Array.make 64 _dummy
+  let add handle typ name = Array.set _stats handle (name, typ, empty)
+
+  let rx handle len =
+    let _, _, stat = Array.get _stats handle in
+    stat.rx_ops <- stat.rx_ops + 1;
+    stat.rx_bytes <- stat.rx_bytes + len
+
+  let tx handle len =
+    let _, _, stat = Array.get _stats handle in
+    stat.tx_ops <- stat.tx_ops + 1;
+    stat.tx_bytes <- stat.tx_bytes + len
+
+  let from handle =
+    let (_, _, s) = Array.get _stats handle in
+    s
+
+  let devices () =
+    snd
+      (Array.fold_left
+         (fun (i, acc) -> function
+           | dummy when dummy == _dummy -> (succ i, acc)
+           | (name, typ, _) -> (succ i, (i, name, typ) :: acc))
+         (0, []) _stats)
+end
+
 module Block_direct = struct
   type t = { handle: int; pagesize: int; len: int }
 
@@ -144,13 +187,14 @@ module Block_direct = struct
         let handle = Int64.to_int (Bytes.get_int64_ne handle 0) in
         let len = Int64.to_int (Bytes.get_int64_ne len 0) in
         let pagesize = Int64.to_int (Bytes.get_int64_ne pagesize 0) in
+        Stats.add handle "block" name;
         Ok { handle; pagesize; len }
     | errno ->
         error_msgf "Impossible to connect the block-device %s (%d)" name errno
 
   let unsafe_read t ~src_off ?(dst_off = 0) dst =
     match miou_solo5_block_read t.handle ~src_off ~dst_off t.pagesize dst with
-    | 0 -> ()
+    | 0 -> Stats.rx t.handle t.pagesize
     | 2 -> invalid_arg "Mkernel.Block.read"
     | _ -> assert false (* AGAIN | UNSPEC *)
 
@@ -169,7 +213,7 @@ module Block_direct = struct
 
   let unsafe_write t ?(src_off = 0) ~dst_off src =
     match miou_solo5_block_write t.handle ~src_off ~dst_off t.pagesize src with
-    | 0 -> ()
+    | 0 -> Stats.tx t.handle t.pagesize
     | 2 -> invalid_arg "Mkernel.Block.write"
     | _ -> assert false (* AGAIN | UNSPEC *)
 
@@ -356,6 +400,7 @@ module Net = struct
         let mac = Bytes.unsafe_to_string mac in
         let handle = Int64.to_int (Bytes.get_int64_ne handle 0) in
         let mtu = Int64.to_int (Bytes.get_int64_ne mtu 0) in
+        Stats.add handle "net" name;
         Ok (handle, { mac; mtu })
     | _ -> error_msgf "Impossible to connect the net-device %s" name
 
@@ -363,7 +408,9 @@ module Net = struct
     let rec go read_size =
       let result = miou_solo5_net_read t bstr off len read_size in
       match result with
-      | 0 -> Int64.to_int (unsafe_get_int64_ne read_size 0)
+      | 0 ->
+          let len = Int64.to_int (unsafe_get_int64_ne read_size 0) in
+          Stats.rx t len; len
       | 1 -> blocking_read t; go read_size
       | 2 -> invalid_arg "Mkernel.Net.read"
       | _ -> assert false (* UNSPEC *)
@@ -395,6 +442,7 @@ module Net = struct
           match result with
           | 0 ->
               let len = Int64.to_int (unsafe_get_int64_ne read_size 0) in
+              Stats.rx t len;
               bigstring_blit_to_bytes bstr ~src_off:0 buf ~dst_off ~len;
               if len > 0 then go (dst_off + len) (dst_len - len)
               else dst_off - off
@@ -413,7 +461,7 @@ module Net = struct
 
   let rec write t ~off ~len bstr =
     match miou_solo5_net_write t off len bstr with
-    | 0 -> ()
+    | 0 -> Stats.tx t len
     | 1 -> write t ~off ~len bstr
     | 2 -> invalid_arg "Mkernel.Net.write"
     | _ -> assert false
