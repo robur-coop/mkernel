@@ -210,6 +210,10 @@ intnat miou_solo5_get_fast_live_words(value v_unit)
 
 intnat miou_solo5_get_stack_words(value v_unit)
 {
+    // 0x100000 is a bit magical, related to
+    // https://github.com/Solo5/solo5/blob/469c1a8d935b503fa553aef152d1d57d095fa3a4/include/hvt_abi.h#L46-L49
+    // #define HVT_GUEST_MIN_BASE 0x100000
+    // which is not exported in solo5.h.
     int dummy;
     return (sp_at_start - (uintptr_t)&dummy + 0x100000) / sizeof(value);
 }
