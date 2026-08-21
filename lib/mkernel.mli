@@ -445,6 +445,17 @@ val clock_monotonic : unit -> int
     This operation is {b atomic}. In other words, it does not give the scheduler
     the opportunity to execute another task. *)
 
+val clock : unit -> Ptime.t
+(** [clock ()] returns wall clock in UTC since the UNIX epoch (1970-01-01) in
+    nanoseconds.
+
+    The wall clock corresponds to the host's clock. Indeed, each time [clock ()]
+    is called, a syscall/hypercall is made to get the host's clock. Compared to
+    the monotonic clock, getting the host's clock may take some time.
+
+    This operation is atomic. In other words, it does not give the scheduler the
+    opportunity to execute another task. *)
+
 val clock_wall : unit -> int
 (** [clock_wall ()] returns wall clock in UTC since the UNIX epoch (1970-01-01)
     in nanoseconds.
