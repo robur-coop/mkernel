@@ -566,7 +566,7 @@ val run :
 (** The first entry-point of an unikernel with Solo5 and Miou. *)
 
 type stat = {
-    heap_words: int  (** total number of works allocatable on the heap. *)
+    heap_words: int  (** total number of words allocatable on the heap. *)
   ; live_words: int  (** number of allocated words on the heap. *)
   ; stack_words: int  (** number of words used by the program stack. *)
   ; free_words: int  (** number of free words on the heap. *)
@@ -575,6 +575,6 @@ type stat = {
 
 val stat : ?quick:bool -> unit -> stat
 (** [stat ~quick ()] returns memory allocation statistics. If [quick] is
-    provided and [true] (the default), it uses a pre-computed avlue. If [quick]
+    provided and [true] (the default), it uses a pre-computed value. If [quick]
     is [false] the function [mallinfo] is used, which traverse the entire heap,
     and is thus more expensive and more accurate. *)
