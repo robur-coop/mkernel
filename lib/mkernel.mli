@@ -153,9 +153,10 @@
 
     Block interfaces are different in that there is no expectation of whether or
     not there will be data. A block interface can be seen as content to which
-    the user has one access per page (generally 4096 bytes). It can be read and
-    written to. However, the read and write operation can take quite a long time
-    — depending on the file system and your hardware on the host system.
+    the user has one access per sector (generally 512 or 4096 bytes). It can be
+    read and written to. However, the read and write operation can take quite a
+    long time — depending on the file system and your hardware on the host
+    system.
 
     There are therefore two types of read/write. An atomic read/write and a
     scheduled read/write.
@@ -188,7 +189,7 @@
 
     A block device is basically a file. The only constraint is that its size
     must be aligned. This means that if you want to launch your unikernel with a
-    page size of 512 (the default value for Solo5), the file must have a size
+    sector size of 512 (the default value for Solo5), the file must have a size
     that is a multiple of 512. Here's how to create a block device with [dd]:
 
     {[
@@ -324,8 +325,8 @@ module Block : sig
   type t
   (** The type of block devices. *)
 
-  val pagesize : t -> int
-  (** [pagesize t] returns the number of bytes in a memory page, where "page" is
+  val sector_size : t -> int
+  (** [sector_size t] returns the number of bytes in a sector, where "sector" is
       a fixed length block, the unit for memory allocation and block-device
       mapping performed by the functions above. *)
 
@@ -333,10 +334,10 @@ module Block : sig
   (** [length t] returns the length of the block device (in bytes). *)
 
   val atomic_read : t -> src_off:int -> ?dst_off:int -> bigstring -> unit
-  (** [atomic_read t ~src_off ?dst_off bstr] reads data of [pagesize t] bytes
+  (** [atomic_read t ~src_off ?dst_off bstr] reads data of [sector_size t] bytes
       into the buffer [bstr] (starting at byte [dst_off]) from the block device
-      [t] at byte [src_off]. Always reads the full amount of [pagesize t] bytes
-      ("short reads" are not possible).
+      [t] at byte [src_off]. Always reads the full amount of [sector_size t]
+      bytes ("short reads" are not possible).
 
       This operation is called {b atomic}, meaning that it is indivisible and
       irreducible. What's more, Miou can't do anything else (such as execute
@@ -352,11 +353,11 @@ module Block : sig
       used to store the block-device.
 
       @raise Invalid_argument
-        if [src_off] is not a multiple of [pagesize t] or if the length of
-        [bstr] is not equal to [pagesize t]. *)
+        if [src_off] is not a multiple of [sector_size t] or if the length of
+        [bstr] is not equal to [sector_size t]. *)
 
   val atomic_write : t -> ?src_off:int -> dst_off:int -> bigstring -> unit
-  (** [atomic_write t ~src_off ?dst_off bstr] writes data [pagesize t] bytes
+  (** [atomic_write t ~src_off ?dst_off bstr] writes data [sector_size t] bytes
       from the buffer [bstr] (at byte [dst_off]) to the block device identified
       by [t], starting at byte [src_off]. Data is either written in it's
       entirety or not at all ("short writes" are not possible).
@@ -366,8 +367,8 @@ module Block : sig
       other tasks) until this operation has been completed.
 
       @raise Invalid_argument
-        if [dst_off] is not a multiple of [pagesize t] or if the length of
-        [bstr] is not equal to [pagesize t]. *)
+        if [dst_off] is not a multiple of [sector_size t] or if the length of
+        [bstr] is not equal to [sector_size t]. *)
 
   (** {3 Scheduled operations on block-devices.}
 

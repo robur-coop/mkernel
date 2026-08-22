@@ -173,61 +173,61 @@ module Stats = struct
 end
 
 module Block_direct = struct
-  type t = { handle: int; pagesize: int; len: int }
+  type t = { handle: int; sector_size : int; len: int }
 
-  let pagesize { pagesize; _ } = pagesize
+  let sector_size { sector_size; _ } = sector_size
   let length { len; _ } = len
 
   let connect name =
     let handle = Bytes.make 8 '\000' in
     let len = Bytes.make 8 '\000' in
-    let pagesize = Bytes.make 8 '\000' in
-    match miou_solo5_block_acquire name handle len pagesize with
+    let sector_size = Bytes.make 8 '\000' in
+    match miou_solo5_block_acquire name handle len sector_size with
     | 0 ->
         let handle = Int64.to_int (Bytes.get_int64_ne handle 0) in
         let len = Int64.to_int (Bytes.get_int64_ne len 0) in
-        let pagesize = Int64.to_int (Bytes.get_int64_ne pagesize 0) in
+        let sector_size = Int64.to_int (Bytes.get_int64_ne sector_size 0) in
         Stats.add handle "block" name;
-        Ok { handle; pagesize; len }
+        Ok { handle; sector_size; len }
     | errno ->
         error_msgf "Impossible to connect the block-device %s (%d)" name errno
 
   let unsafe_read t ~src_off ?(dst_off = 0) dst =
-    match miou_solo5_block_read t.handle ~src_off ~dst_off t.pagesize dst with
-    | 0 -> Stats.rx t.handle t.pagesize
+    match miou_solo5_block_read t.handle ~src_off ~dst_off t.sector_size dst with
+    | 0 -> Stats.rx t.handle t.sector_size
     | 2 -> invalid_arg "Mkernel.Block.read"
     | _ -> assert false (* AGAIN | UNSPEC *)
 
   let atomic_read t ~src_off ?(dst_off = 0) dst =
-    if dst_off < 0 || dst_off > Bigarray.Array1.dim dst - t.pagesize then
+    if dst_off < 0 || dst_off > Bigarray.Array1.dim dst - t.sector_size then
       invalid_argf
         "Mkernel.Block.atomic_read: [dst_off] (%d) or length (%d) of the \
          destination bigarray are wrong."
         dst_off (Bigarray.Array1.dim dst);
-    if src_off land (t.pagesize - 1) != 0 then
+    if src_off land (t.sector_size - 1) != 0 then
       invalid_argf
-        "Mkernel.Block.atomic_read: [src_off] must be aligned to the pagesize \
+        "Mkernel.Block.atomic_read: [src_off] must be aligned to the sector size \
          (%d)"
-        t.pagesize;
+        t.sector_size;
     unsafe_read t ~src_off ~dst_off dst
 
   let unsafe_write t ?(src_off = 0) ~dst_off src =
-    match miou_solo5_block_write t.handle ~src_off ~dst_off t.pagesize src with
-    | 0 -> Stats.tx t.handle t.pagesize
+    match miou_solo5_block_write t.handle ~src_off ~dst_off t.sector_size src with
+    | 0 -> Stats.tx t.handle t.sector_size
     | 2 -> invalid_arg "Mkernel.Block.write"
     | _ -> assert false (* AGAIN | UNSPEC *)
 
   let atomic_write t ?(src_off = 0) ~dst_off src =
-    if src_off < 0 || src_off > Bigarray.Array1.dim src - t.pagesize then
+    if src_off < 0 || src_off > Bigarray.Array1.dim src - t.sector_size then
       invalid_argf
         "Mkernel.Block.atomic_write: [src_off] (%d) or length (%d) of the \
          destination bigarray are wrong."
         dst_off (Bigarray.Array1.dim src);
-    if dst_off land (t.pagesize - 1) != 0 then
+    if dst_off land (t.sector_size - 1) != 0 then
       invalid_argf
-        "Mkernel.Block.atomic_write: [dst_off] must be aligned to the pagesize \
+        "Mkernel.Block.atomic_write: [dst_off] must be aligned to the sector size \
          (%d)"
-        t.pagesize;
+        t.sector_size;
     unsafe_write t ~src_off ~dst_off src
 end
 
@@ -515,24 +515,24 @@ module Block = struct
   include Block_direct
 
   let read t ~src_off ?(dst_off = 0) bstr =
-    if dst_off < 0 || dst_off > Bigarray.Array1.dim bstr - t.pagesize then
+    if dst_off < 0 || dst_off > Bigarray.Array1.dim bstr - t.sector_size then
       invalid_argf "TODO";
-    if src_off land (t.pagesize - 1) != 0 then
+    if src_off land (t.sector_size - 1) != 0 then
       invalid_argf
-        "Mkernel.Block.read: [off] must be aligned to the pagesize (%d)"
-        t.pagesize;
+        "Mkernel.Block.read: [off] must be aligned to the sector size (%d)"
+        t.sector_size;
     let syscall = Miou.syscall () in
     let args = { t; bstr; src_off; dst_off; syscall; cancelled= false } in
     let fn () = Queue.push (Rd args) domain.blocks in
     Miou.suspend ~fn syscall
 
   let write t ?(src_off = 0) ~dst_off bstr =
-    if src_off < 0 || src_off > Bigarray.Array1.dim bstr - t.pagesize then
+    if src_off < 0 || src_off > Bigarray.Array1.dim bstr - t.sector_size then
       invalid_arg "TODO";
-    if dst_off land (t.pagesize - 1) != 0 then
+    if dst_off land (t.sector_size - 1) != 0 then
       invalid_argf
-        "Mkernel.Block.write: [off] must be aligned to the pagesize (%d)"
-        t.pagesize;
+        "Mkernel.Block.write: [off] must be aligned to the sector size (%d)"
+        t.sector_size;
     let syscall = Miou.syscall () in
     let args = { t; bstr; src_off; dst_off; syscall; cancelled= false } in
     let fn () = Queue.push (Wr args) domain.blocks in

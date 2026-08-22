@@ -23,8 +23,8 @@ extern void caml_leave_blocking_section(void);
  * between 0 and 63. */
 
 value miou_solo5_block_acquire(value vname, value vhandle, value vlen,
-                               value vpage) {
-  CAMLparam4(vname, vhandle, vlen, vpage);
+                               value vsector_size) {
+  CAMLparam4(vname, vhandle, vlen, vsector_size);
   solo5_result_t result;
   solo5_handle_t handle;
   struct solo5_block_info bi;
@@ -34,7 +34,7 @@ value miou_solo5_block_acquire(value vname, value vhandle, value vlen,
   if (result == SOLO5_R_OK) {
     memcpy(Bytes_val(vhandle), (uint64_t *)&handle, sizeof(uint64_t));
     memcpy(Bytes_val(vlen), (uint64_t *)&bi.capacity, sizeof(uint64_t));
-    memcpy(Bytes_val(vpage), (uint64_t *)&bi.block_size, sizeof(uint64_t));
+    memcpy(Bytes_val(vsector_size), (uint64_t *)&bi.block_size, sizeof(uint64_t));
   }
 
   CAMLreturn(Val_long(result));
