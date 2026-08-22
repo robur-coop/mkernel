@@ -1,4 +1,4 @@
-let src = Logs.Src.create "miou.solo5"
+let src = Logs.Src.create "mkernel.solo5"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
