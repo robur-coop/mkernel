@@ -380,15 +380,16 @@ type domain = {
 let nsec_per_day = Int64.mul 86_400L 1_000_000_000L
 let ps_per_ns = 1_000L
 
+let to_ptime nsec =
+  let nsec = Int64.of_int nsec in
+  let days = Int64.div nsec nsec_per_day in
+  let rem_ns = Int64.rem nsec nsec_per_day in
+  let rem_ps = Int64.mul rem_ns ps_per_ns in
+  Ptime.v (Int64.to_int days, rem_ps)
+
+let now () = to_ptime (clock_wall ())
+
 let domain =
-  let now () =
-    let nsec = clock_wall () in
-    let nsec = Int64.of_int nsec in
-    let days = Int64.div nsec nsec_per_day in
-    let rem_ns = Int64.rem nsec nsec_per_day in
-    let rem_ps = Int64.mul rem_ns ps_per_ns in
-    Ptime.v (Int64.to_int days, rem_ps)
-  in
   {
     handles= Handles.create 0x100
   ; wsleepers= Wsleepers.create ()
