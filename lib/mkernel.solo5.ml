@@ -131,10 +131,10 @@ let error_msgf fmt = Format.kasprintf (fun msg -> Error (`Msg msg)) fmt
 
 module Stats = struct
   type t = {
-    mutable rx_ops: int
-  ; mutable rx_bytes: int
-  ; mutable tx_ops: int
-  ; mutable tx_bytes: int
+      mutable rx_ops: int
+    ; mutable rx_bytes: int
+    ; mutable tx_ops: int
+    ; mutable tx_bytes: int
   }
 
   type handle = int
@@ -143,7 +143,6 @@ module Stats = struct
   let rx_bytes { rx_bytes; _ } = rx_bytes
   let tx_ops { tx_ops; _ } = tx_ops
   let tx_bytes { tx_bytes; _ } = tx_bytes
-
   let empty = { rx_ops= 0; rx_bytes= 0; tx_ops= 0; tx_bytes= 0 }
   let _dummy = ("", "invalid", empty)
   let _stats = Array.make 64 _dummy
@@ -160,7 +159,7 @@ module Stats = struct
     stat.tx_bytes <- stat.tx_bytes + len
 
   let from handle =
-    let (_, _, s) = Array.get _stats handle in
+    let _, _, s = Array.get _stats handle in
     s
 
   let devices () =
@@ -168,12 +167,12 @@ module Stats = struct
       (Array.fold_left
          (fun (i, acc) -> function
            | dummy when dummy == _dummy -> (succ i, acc)
-           | (name, typ, _) -> (succ i, (i, name, typ) :: acc))
+           | name, typ, _ -> (succ i, (i, name, typ) :: acc))
          (0, []) _stats)
 end
 
 module Block_direct = struct
-  type t = { handle: int; sector_size : int; len: int }
+  type t = { handle: int; sector_size: int; len: int }
 
   let sector_size { sector_size; _ } = sector_size
   let length { len; _ } = len
@@ -193,7 +192,9 @@ module Block_direct = struct
         error_msgf "Impossible to connect the block-device %s (%d)" name errno
 
   let unsafe_read t ~src_off ?(dst_off = 0) dst =
-    match miou_solo5_block_read t.handle ~src_off ~dst_off t.sector_size dst with
+    match
+      miou_solo5_block_read t.handle ~src_off ~dst_off t.sector_size dst
+    with
     | 0 -> Stats.rx t.handle t.sector_size
     | 2 -> invalid_arg "Mkernel.Block.read"
     | _ -> assert false (* AGAIN | UNSPEC *)
@@ -206,13 +207,15 @@ module Block_direct = struct
         dst_off (Bigarray.Array1.dim dst);
     if src_off land (t.sector_size - 1) != 0 then
       invalid_argf
-        "Mkernel.Block.atomic_read: [src_off] must be aligned to the sector size \
-         (%d)"
+        "Mkernel.Block.atomic_read: [src_off] must be aligned to the sector \
+         size (%d)"
         t.sector_size;
     unsafe_read t ~src_off ~dst_off dst
 
   let unsafe_write t ?(src_off = 0) ~dst_off src =
-    match miou_solo5_block_write t.handle ~src_off ~dst_off t.sector_size src with
+    match
+      miou_solo5_block_write t.handle ~src_off ~dst_off t.sector_size src
+    with
     | 0 -> Stats.tx t.handle t.sector_size
     | 2 -> invalid_arg "Mkernel.Block.write"
     | _ -> assert false (* AGAIN | UNSPEC *)
@@ -225,8 +228,8 @@ module Block_direct = struct
         dst_off (Bigarray.Array1.dim src);
     if dst_off land (t.sector_size - 1) != 0 then
       invalid_argf
-        "Mkernel.Block.atomic_write: [dst_off] must be aligned to the sector size \
-         (%d)"
+        "Mkernel.Block.atomic_write: [dst_off] must be aligned to the sector \
+         size (%d)"
         t.sector_size;
     unsafe_write t ~src_off ~dst_off src
 end
@@ -387,9 +390,11 @@ let blocking_read fd =
   Miou.suspend ~fn syscall
 
 module Net = struct
-  type t = int
   type mac = string
-  type cfg = { mac: mac; mtu: int }
+  type t = { handle: int; mac: mac; mtu: int }
+
+  let mac { mac; _ } = mac
+  let mtu { mtu; _ } = mtu
 
   let connect name =
     let handle = Bytes.make 8 '\000' in
@@ -401,7 +406,7 @@ module Net = struct
         let handle = Int64.to_int (Bytes.get_int64_ne handle 0) in
         let mtu = Int64.to_int (Bytes.get_int64_ne mtu 0) in
         Stats.add handle "net" name;
-        Ok (handle, { mac; mtu })
+        Ok { handle; mac; mtu }
     | _ -> error_msgf "Impossible to connect the net-device %s" name
 
   let read t ~off ~len bstr =
@@ -423,7 +428,7 @@ module Net = struct
     in
     if len < 0 || off < 0 || off > Bigarray.Array1.dim bstr - len then
       invalid_arg "Mkernel.Net.read_bigstring: out of bounds";
-    read t ~off ~len bstr
+    read t.handle ~off ~len bstr
 
   let read_bytes =
     (* NOTE(dinosaure): Using [bstr] as a global is safe for 2 reasons. We
@@ -438,15 +443,15 @@ module Net = struct
       let rec go dst_off dst_len =
         if dst_len > 0 then begin
           let len = Int.min (Bigarray.Array1.dim bstr) dst_len in
-          let result = miou_solo5_net_read t bstr off len read_size in
+          let result = miou_solo5_net_read t.handle bstr off len read_size in
           match result with
           | 0 ->
               let len = Int64.to_int (unsafe_get_int64_ne read_size 0) in
-              Stats.rx t len;
+              Stats.rx t.handle len;
               bigstring_blit_to_bytes bstr ~src_off:0 buf ~dst_off ~len;
               if len > 0 then go (dst_off + len) (dst_len - len)
               else dst_off - off
-          | 1 -> blocking_read t; go dst_off dst_len
+          | 1 -> blocking_read t.handle; go dst_off dst_len
           | 2 -> invalid_arg "Mkernel.Net.read"
           | _ -> assert false (* UNSPEC *)
         end
@@ -460,8 +465,8 @@ module Net = struct
       go off len
 
   let rec write t ~off ~len bstr =
-    match miou_solo5_net_write t off len bstr with
-    | 0 -> Stats.tx t len
+    match miou_solo5_net_write t.handle off len bstr with
+    | 0 -> Stats.tx t.handle len
     | 1 -> write t ~off ~len bstr
     | 2 -> invalid_arg "Mkernel.Net.write"
     | _ -> assert false
@@ -714,7 +719,7 @@ let select ~block cancelled_syscalls =
 let events _domain = { Miou.interrupt= ignore; select; finaliser= ignore }
 
 type 'a arg =
-  | Net : string -> (Net.t * Net.cfg) arg
+  | Net : string -> Net.t arg
   | Block : string -> Block.t arg
   | Map : ('f, 'a) devices * 'f -> 'a arg
   | Map_finally : 'a arg * ('a -> unit) -> 'a arg
@@ -733,7 +738,7 @@ let const v = Const v
 let rec ctor : type a. a arg -> a = function
   | Net device ->
       begin match Net.connect device with
-      | Ok (t, cfg) -> (t, cfg)
+      | Ok t -> t
       | Error (`Msg msg) -> failwithf "%s." msg
       end
   | Block device ->
