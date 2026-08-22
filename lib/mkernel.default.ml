@@ -75,7 +75,7 @@ external clock_wall : unit -> (int[@untagged])
   = "unimplemented" "miou_solo5_clock_wall"
 [@@noalloc]
 
-let clock () = assert false
+let now () = assert false
 let sleep _ = assert false
 let wakeup ~at:_ = assert false
 let heap_size = Fun.const 0

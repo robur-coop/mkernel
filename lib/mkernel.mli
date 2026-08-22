@@ -445,8 +445,8 @@ val clock_monotonic : unit -> int
     This operation is {b atomic}. In other words, it does not give the scheduler
     the opportunity to execute another task. *)
 
-val clock : unit -> Ptime.t
-(** [clock ()] returns wall clock in UTC since the UNIX epoch (1970-01-01) in
+val now : unit -> Ptime.t
+(** [now ()] returns wall clock in UTC since the UNIX epoch (1970-01-01) in
     nanoseconds.
 
     The wall clock corresponds to the host's clock. Indeed, each time [clock ()]

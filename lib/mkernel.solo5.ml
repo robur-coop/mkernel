@@ -131,10 +131,10 @@ let error_msgf fmt = Format.kasprintf (fun msg -> Error (`Msg msg)) fmt
 
 module Stats = struct
   type t = {
-    mutable rx_ops: int
-  ; mutable rx_bytes: int
-  ; mutable tx_ops: int
-  ; mutable tx_bytes: int
+      mutable rx_ops: int
+    ; mutable rx_bytes: int
+    ; mutable tx_ops: int
+    ; mutable tx_bytes: int
   }
 
   type handle = int
@@ -143,7 +143,6 @@ module Stats = struct
   let rx_bytes { rx_bytes; _ } = rx_bytes
   let tx_ops { tx_ops; _ } = tx_ops
   let tx_bytes { tx_bytes; _ } = tx_bytes
-
   let empty = { rx_ops= 0; rx_bytes= 0; tx_ops= 0; tx_bytes= 0 }
   let _dummy = ("", "invalid", empty)
   let _stats = Array.make 64 _dummy
@@ -160,7 +159,7 @@ module Stats = struct
     stat.tx_bytes <- stat.tx_bytes + len
 
   let from handle =
-    let (_, _, s) = Array.get _stats handle in
+    let _, _, s = Array.get _stats handle in
     s
 
   let devices () =
@@ -168,7 +167,7 @@ module Stats = struct
       (Array.fold_left
          (fun (i, acc) -> function
            | dummy when dummy == _dummy -> (succ i, acc)
-           | (name, typ, _) -> (succ i, (i, name, typ) :: acc))
+           | name, typ, _ -> (succ i, (i, name, typ) :: acc))
          (0, []) _stats)
 end
 
@@ -371,7 +370,7 @@ let to_ptime nsec =
   let rem_ps = Int64.mul rem_ns ps_per_ns in
   Ptime.v (Int64.to_int days, rem_ps)
 
-let clock () = to_ptime (clock_wall ())
+let now () = to_ptime (clock_wall ())
 
 let domain =
   {
@@ -379,7 +378,7 @@ let domain =
   ; wsleepers= Wsleepers.create ()
   ; msleepers= Msleepers.create ()
   ; blocks= Queue.create ()
-  ; now= clock
+  ; now
   }
 
 let blocking_read fd =
