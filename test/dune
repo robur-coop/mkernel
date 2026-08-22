@@ -38,6 +38,14 @@
   (language c)
   (names manifest.cmdline)))
 
+(executable
+ (name argv)
+ (modules argv)
+ (modes native)
+ (link_flags :standard -cclib "-z solo5-abi=hvt")
+ (libraries mkernel fmt)
+ (foreign_stubs (language c) (names manifest.argv)))
+
 (rule
  (targets manifest.sleep.c)
  (deps sleep.json)
@@ -138,9 +146,34 @@
  (action
   (write-file manifest.cmdline.c "")))
 
+(rule
+ (targets manifest.argv.c)
+ (deps argv.json)
+ (enabled_if
+  (= %{context_name} "solo5"))
+ (action
+  (run solo5-elftool gen-manifest argv.json manifest.argv.c)))
+
+(rule
+ (targets argv.json)
+ (enabled_if
+  (= %{context_name} "solo5"))
+ (action
+  (with-stdout-to
+   argv.json
+   (run %{exe:argv.exe}))))
+
+(rule
+ (targets manifest.argv.c)
+ (enabled_if
+  (or
+   (= %{context_name} "default")))
+ (action
+  (write-file manifest.argv.c "")))
+
 (cram
  (enabled_if
   (= %{context_name} "solo5"))
  (package mkernel)
  (applies_to solo5)
- (deps sleep.exe schedule.exe block.exe simple.txt cmdline.exe))
+ (deps sleep.exe schedule.exe block.exe simple.txt cmdline.exe argv.exe))

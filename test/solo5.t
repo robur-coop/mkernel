@@ -16,3 +16,5 @@ Tests some simple unikernels with Solo5
   uniker.ml --foo Foo --bar Bar
   foo: Some "Foo"
   bar: Some "Bar"
+  $ solo5-hvt argv.exe --solo5:quiet Hello there "this is a quoted string"
+  [|"uniker.ml"; "Hello"; "there"; "this is a quoted string"|]
