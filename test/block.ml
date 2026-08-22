@@ -1,4 +1,5 @@
 let cachet_of_block ~cachesize blk () =
+  print_endline "cachet_of_block is initializing";
   let map blk ~pos len =
     let bstr = Bigarray.(Array1.create char c_layout len) in
     Mkernel.Block.read blk ~src_off:pos bstr;
@@ -9,10 +10,13 @@ let cachet_of_block ~cachesize blk () =
 
 let cachet ~cachesize name =
   let open Mkernel in
+  let finish _ = print_endline "Cleaning up the disk" in
+  finally finish @@
   map (cachet_of_block ~cachesize) [ block name ]
 
 let () =
   Mkernel.(run [ cachet ~cachesize:512 "0" ]) @@ fun blk () ->
+  print_endline "The unikernel runs";
   let sector_size = Cachet.pagesize blk in
   let prm =
     Miou.async @@ fun () ->

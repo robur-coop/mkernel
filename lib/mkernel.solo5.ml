@@ -717,6 +717,7 @@ type 'a arg =
   | Net : string -> (Net.t * Net.cfg) arg
   | Block : string -> Block.t arg
   | Map : ('f, 'a) devices * 'f -> 'a arg
+  | Map_finally : 'a arg * ('a -> unit) -> 'a arg
   | Const : 'a -> 'a arg
 
 and ('k, 'res) devices =
@@ -726,6 +727,7 @@ and ('k, 'res) devices =
 let net name = Net name
 let block name = Block name
 let map fn args = Map (args, fn)
+let finally fn arg = Map_finally (arg, fn)
 let const v = Const v
 
 let rec ctor : type a. a arg -> a = function
@@ -741,10 +743,18 @@ let rec ctor : type a. a arg -> a = function
       end
   | Const v -> v
   | Map (args, fn) -> go (fun fn -> fn ()) args fn
+  | Map_finally (v, _finally) -> ctor v
 
 and go : type k res. ((unit -> res) -> res) -> (k, res) devices -> k -> res =
  fun run -> function
   | [] -> fun fn -> run fn
+  | Map_finally (arg, finally) :: devices ->
+      let v = ctor arg in
+      let finally () = finally v in
+      fun f ->
+        Fun.protect ~finally @@ fun () ->
+        let r = f v in
+        go run devices r
   | arg :: devices ->
       let v = ctor arg in
       fun f ->
