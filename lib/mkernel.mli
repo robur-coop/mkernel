@@ -199,6 +199,7 @@
 type bigstring =
   (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
 
+(** Statistics (counters) about devices and malloc. *)
 module Stats : sig
   type t
   (** The type of statistics of a device. *)
@@ -224,6 +225,20 @@ module Stats : sig
 
   val from : handle -> t
   (** [from handle] is the statistics of the device [handle]. *)
+
+  type malloc = {
+    heap_words: int  (** total number of words allocatable on the heap. *)
+  ; live_words: int  (** number of allocated words on the heap. *)
+  ; stack_words: int  (** number of words used by the program stack. *)
+  ; free_words: int  (** number of free words on the heap. *)
+  }
+  (** The type about memory usage as observed by malloc. *)
+
+  val malloc : ?quick:bool -> unit -> malloc
+  (** [malloc ~quick ()] returns memory allocation statistics. If [quick] is
+      provided and [true] (the default), it uses a pre-computed value. If [quick]
+      is [false] the function [mallinfo] is used, which traverse the entire heap,
+      and is thus more expensive and more accurate. *)
 end
 
 module Net : sig
@@ -609,17 +624,3 @@ val const : 'a -> 'a arg
 val run :
   ?now:(unit -> Ptime.t) -> ?g:Random.State.t -> ('a, 'b) devices -> 'a -> 'b
 (** The first entry-point of an unikernel with Solo5 and Miou. *)
-
-type stat = {
-    heap_words: int  (** total number of words allocatable on the heap. *)
-  ; live_words: int  (** number of allocated words on the heap. *)
-  ; stack_words: int  (** number of words used by the program stack. *)
-  ; free_words: int  (** number of free words on the heap. *)
-}
-(** The type about memory usage as observed by malloc. *)
-
-val stat : ?quick:bool -> unit -> stat
-(** [stat ~quick ()] returns memory allocation statistics. If [quick] is
-    provided and [true] (the default), it uses a pre-computed value. If [quick]
-    is [false] the function [mallinfo] is used, which traverse the entire heap,
-    and is thus more expensive and more accurate. *)

@@ -169,6 +169,19 @@ module Stats = struct
            | dummy when dummy == _dummy -> (succ i, acc)
            | name, typ, _ -> (succ i, (i, name, typ) :: acc))
          (0, []) _stats)
+
+  type malloc = {
+    heap_words: int
+  ; live_words: int
+  ; stack_words: int
+  ; free_words: int
+  }
+
+  let malloc ?(quick = true) () =
+    let h = heap_words () in
+    let l = if quick then fast_live_words () else live_words () in
+    let s = stack_words () in
+    { heap_words= h; live_words= l; stack_words= s; free_words= h - l - s }
 end
 
 module Block_direct = struct
@@ -778,16 +791,3 @@ let run ?now:wclock ?g devices fn =
   Miou.run ~events ~domains:0 ?g @@ fun () ->
   let run fn = fn () in
   go run devices fn
-
-type stat = {
-    heap_words: int
-  ; live_words: int
-  ; stack_words: int
-  ; free_words: int
-}
-
-let stat ?(quick = true) () =
-  let h = heap_words () in
-  let l = if quick then fast_live_words () else live_words () in
-  let s = stack_words () in
-  { heap_words= h; live_words= l; stack_words= s; free_words= h - l - s }

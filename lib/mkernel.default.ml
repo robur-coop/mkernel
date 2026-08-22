@@ -11,6 +11,16 @@ module Stats = struct
   let tx_bytes () = 0
   let devices () = []
   let from _ = ()
+
+  type malloc = {
+    heap_words: int
+  ; live_words: int
+  ; stack_words: int
+  ; free_words: int
+  }
+
+  let malloc ?quick:_ () =
+    { heap_words= 0; live_words= 0; stack_words= 0; free_words= 0 }
 end
 
 let device =
@@ -112,13 +122,3 @@ let run ?now:_ ?g:_ args _fn =
   match Jsont_bytesrw.encode_string t devices with
   | Ok str -> print_endline str; exit 0
   | Error str -> prerr_endline str; exit 1
-
-type stat = {
-    heap_words: int
-  ; live_words: int
-  ; stack_words: int
-  ; free_words: int
-}
-
-let stat ?quick:_ () =
-  { heap_words= 0; live_words= 0; stack_words= 0; free_words= 0 }
