@@ -11,8 +11,7 @@ let cachet_of_block ~cachesize blk () =
 let cachet ~cachesize name =
   let open Mkernel in
   let finish _ = print_endline "Cleaning up the disk" in
-  finally finish @@
-  map (cachet_of_block ~cachesize) [ block name ]
+  finally finish @@ map (cachet_of_block ~cachesize) [ block name ]
 
 let () =
   Mkernel.(run [ cachet ~cachesize:512 "0" ]) @@ fun blk () ->

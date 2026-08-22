@@ -231,9 +231,13 @@ module Net : sig
   (** The type of network interfaces. *)
 
   type mac = private string
-  (** The type of the hardware addres (MAC) of an ethernet interface. *)
+  (** The type of the hardware addres (MAC) of a network interface. *)
 
-  type cfg = { mac: mac; mtu: int }
+  val mac : t -> mac
+  (** The mac address of this network interface. *)
+
+  val mtu : t -> int
+  (** The maximum transfer unit (MTU) of this network interface. *)
 
   val read_bigstring : t -> ?off:int -> ?len:int -> bigstring -> int
   (** [read_bigstring t ?off ?len bstr] reads [len] (defaults to
@@ -309,7 +313,7 @@ module Net : sig
       {!val:write_bigstring} because it prepares the allocation and lets the
       user write to the allocated buffer via the given [fn] function. *)
 
-  val connect : string -> (t * cfg, [> `Msg of string ]) result
+  val connect : string -> (t, [> `Msg of string ]) result
   (** [connect name] returns a net device according to the given [name]. It must
       correspond to the name given as an argument to the Solo5 tender. For
       example, if the invocation of our unikernel with Solo5 corresponds to:
@@ -375,8 +379,8 @@ module Block : sig
       As far as operations on scheduled block-devices are concerned, here's a
       description of when Miou performs these operations.
 
-      As soon as Miou tries to observe possible events (such as the reception
-      of a packet - see {!val:Net.read_bigstring}), it also performs a (single)
+      As soon as Miou tries to observe possible events (such as the reception of
+      a packet - see {!val:Net.read_bigstring}), it also performs a (single)
       block-device operation. If Miou still has time (such as waiting for the
       end of a {!val:sleep}), it can perform several operations on the
       block-devices until it runs out of time.
@@ -547,7 +551,7 @@ type ('k, 'res) devices =
   | [] : (unit -> 'res, 'res) devices
   | ( :: ) : 'a arg * ('k, 'res) devices -> ('a -> 'k, 'res) devices
 
-val net : string -> (Net.t * Net.cfg) arg
+val net : string -> Net.t arg
 (** [net name] is a net device which can be used by the {!module:Net} module.
     The given name must correspond to the argument given to the Solo5 tender or
     the qemu tender. For example, if the invocation of our unikernel with Solo5
@@ -560,8 +564,9 @@ val net : string -> (Net.t * Net.cfg) arg
     The name of the block would be: ["service"].
 
     The user can specify the MAC address of the virtual interface the user
-    wishes to use. Otherwise, Solo5 will choose a random one. It is given via
-    the {!type:Net.cfg} value. *)
+    wishes to use (via `--net-mac:service=aa:bb:cc:dd:ee:ff`). Otherwise, Solo5
+    will choose a random one. It can be observed via the {!type:Net.mac} value.
+*)
 
 val block : string -> Block.t arg
 (** [block name] is a block device which can be used by the {!module:Block}
@@ -581,23 +586,22 @@ val map : 'f -> ('f, 'a) devices -> 'a arg
     device:
 
     {[
-      let tcpip ~name : Tcpip.t Mkernel.arg =
-        Mkernel.finally Tcpip.kill
-        @@ Mkernel.(map [ net name ])
-        @@ fun ((net : Mkernel.Net.t), cfg) () ->
-        Tcpip.of_net_device net
+    let tcpip ~name : Tcpip.t Mkernel.arg =
+      Mkernel.finally Tcpip.kill
+      @@ Mkernel.(map [ net name ])
+      @@ fun (net : Mkernel.Net.t) () -> Tcpip.of_net_device net
     ]}
 
-    Whenever a device needs to be derived into something more complex (such as
-    a TCP/IP stack), OCaml resources (such as background tasks) may be involved
-    in creating these new devices. It may be useful to attach a {i finaliser} so
+    Whenever a device needs to be derived into something more complex (such as a
+    TCP/IP stack), OCaml resources (such as background tasks) may be involved in
+    creating these new devices. It may be useful to attach a {i finaliser} so
     that these resources are released when the unikernel shuts down (or raise an
     exception). The {!finally} function allows you to do this. *)
 
 val finally : ('a -> unit) -> 'a arg -> 'a arg
-(** [finally fn arg] is [arg] with a finalizer [fn] attached that will run
-    when {!run} returns. This can be useful in order to kill e.g. background
-    tasks. *)
+(** [finally fn arg] is [arg] with a finalizer [fn] attached that will run when
+    {!run} returns. This can be useful in order to kill e.g. background tasks.
+*)
 
 val const : 'a -> 'a arg
 (** [const v] always returns [v]. *)

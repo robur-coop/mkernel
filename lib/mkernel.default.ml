@@ -37,8 +37,9 @@ let t =
 module Net = struct
   type t = int
   type mac = string
-  type cfg = { mac: mac; mtu: int }
 
+  let mac _t = assert false
+  let mtu _t = assert false
   let connect _name = assert false
   let read_bigstring _t ?off:_ ?len:_ _bstr = assert false
   let read_bytes _t ?off:_ ?len:_ _buf = assert false
@@ -82,7 +83,7 @@ let heap_size = Fun.const 0
 type 'a arg =
   | Args : ('k, 'res) devices -> 'a arg
   | Block : string -> Block.t arg
-  | Net : string -> (Net.t * Net.cfg) arg
+  | Net : string -> Net.t arg
 
 and ('k, 'res) devices =
   | [] : (unit -> 'res, 'res) devices
