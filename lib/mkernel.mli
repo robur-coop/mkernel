@@ -1,4 +1,4 @@
-(** A simple scheduler for Solo5/Unikraft in OCaml.
+(** A simple scheduler for Solo5 in OCaml.
 
     A unikernel is a fully-fledged operating system that essentially wants to be
     virtualised into a host system such as Linux (KVM) or FreeBSD (Bhyve). In
@@ -91,7 +91,7 @@
 
     The user can read and write packets on such an interface. However, you need
     to understand how reading and writing behave when developing an application
-    as a unikernel using Solo5/Unikraft.
+    as a unikernel using Solo5.
 
     Writing a packet to the net interface is {b direct} and failsafe. In other
     words, we don't need to wait for anything to happen before writing to the
@@ -117,12 +117,12 @@
 
     {4 Allocating a net device.}
 
-    Whether it is Solo5 (and its tender) or Unikraft (via [qemu] or
-    [firecracker]), it is necessary for the user to be able to allocate a
-    network interface, often referred to as a {i tap} interface. The latter is a
-    virtualization of an Ethernet port that can be manipulated both by the
-    unikernel (in order to communicate with the rest of the world) and the host
-    system (to be configured so that the unikernel is connected to a network).
+    With Solo5 (and its tender), it is necessary for the user to be able to
+    allocate a network interface, often referred to as a {i tap} interface. The
+    latter is a virtualization of an Ethernet port that can be manipulated both
+    by the unikernel (in order to communicate with the rest of the world) and
+    the host system (to be configured so that the unikernel is connected to a
+    network).
 
     Here's how to create a tap interface on Linux:
 
@@ -282,7 +282,7 @@ module Net : sig
 
   (** {4 Writing to a net device according to the backend.}
 
-      Depending on the backend used (Solo5/hvt or Unikraft & Solo5/virtio),
+      Depending on the backend used (Solo5/hvt or Solo5/virtio),
       writing to a TAP interface may involve an intermediate "queue" between the
       unikernel (which fills this queue) and the tender (which consumes this
       queue). This feature allows for a process on the tender side that attempts
@@ -315,10 +315,9 @@ module Net : sig
 
   val write_into : t -> len:int -> fn:(bigstring -> int) -> unit
   (** Depending on the backend used, an underlying allocation may be performed
-      to write a new Ethernet frame. In the case of Unikraft, for example, we
-      need to allocate a buffer that will be added to Unikraft's internal queue
-      so that it can be written to the TAP interface. The same applies to Solo5
-      and its {i virtio} support.
+      to write a new Ethernet frame. For Solo5 and its {i virtio} support, we
+      need to allocate a buffer that will be added to the internal queue so that
+      it can be written to the TAP interface.
 
       [write_into] has the same characteristic as {!val:write_bigstring}, i.e.
       it is an atomic operation that does not give the scheduler the opportunity
