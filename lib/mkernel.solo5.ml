@@ -171,10 +171,10 @@ module Stats = struct
          (0, []) _stats)
 
   type malloc = {
-    heap_words: int
-  ; live_words: int
-  ; stack_words: int
-  ; free_words: int
+      heap_words: int
+    ; live_words: int
+    ; stack_words: int
+    ; free_words: int
   }
 
   let malloc ?(quick = true) () =
