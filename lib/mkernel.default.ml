@@ -13,10 +13,10 @@ module Stats = struct
   let from _ = ()
 
   type malloc = {
-    heap_words: int
-  ; live_words: int
-  ; stack_words: int
-  ; free_words: int
+      heap_words: int
+    ; live_words: int
+    ; stack_words: int
+    ; free_words: int
   }
 
   let malloc ?quick:_ () =
