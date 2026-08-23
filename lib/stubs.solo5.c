@@ -16,6 +16,18 @@
 extern void caml_enter_blocking_section(void);
 extern void caml_leave_blocking_section(void);
 
+value miou_solo5_bigstring_blit_to_bytes (value src, intnat src_off, value dst,
+                                          intnat dst_off, intnat len) {
+  memcpy(Bytes_val(dst) + dst_off, (char*)Caml_ba_data_val(src) + src_off, len);
+  return Val_unit;
+}
+
+value miou_solo5_bigstring_blit_from_string (value src, intnat src_off, value dst,
+                                             intnat dst_off, intnat len) {
+  memcpy((char*)Caml_ba_data_val(dst) + dst_off, String_val(src) + src_off, len);
+  return Val_unit;
+}
+
 /* Note between solo5_handle_t and intnat. Currently, solo5_handle_t is an
  * integer 64, but Solo5 cannot manage more than 64 devices at the same time.
  * More practically, it would be difficult to make a unikernel that needed 64
