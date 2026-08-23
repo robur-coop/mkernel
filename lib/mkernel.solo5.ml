@@ -10,10 +10,12 @@ type bigstring =
 external bigstring_blit_to_bytes : bigstring -> src_off:(int[@untagged]) ->
   bytes -> dst_off:(int[@untagged]) -> len:(int[@untagged]) -> unit =
   "unimplemented" "miou_solo5_bigstring_blit_to_bytes"
+[@@noalloc]
 
 external bigstring_blit_from_string : string -> src_off:(int[@untagged]) ->
   bigstring -> dst_off:(int[@untagged]) -> len:(int[@untagged]) -> unit =
   "unimplemented" "miou_solo5_bigstring_blit_from_string"
+[@@noalloc]
 
 external miou_solo5_net_acquire : string -> bytes -> bytes -> bytes -> int
   = "unimplemented" "miou_solo5_net_acquire"
