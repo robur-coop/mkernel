@@ -5,46 +5,17 @@ module Log = (val Logs.src_log src : Logs.LOG)
 type bigstring =
   (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
 
-external bigstring_get_uint8 : bigstring -> int -> int = "%caml_ba_ref_1"
-
-external bigstring_set_uint8 : bigstring -> int -> int -> unit
-  = "%caml_ba_set_1"
-
-external bigstring_get_int32_ne : bigstring -> int -> int32
-  = "%caml_bigstring_get32"
-
-external bigstring_set_int32_ne : bigstring -> int -> int32 -> unit
-  = "%caml_bigstring_set32"
-
-let bigstring_blit_to_bytes bstr ~src_off dst ~dst_off ~len =
-  let len0 = len land 3 in
-  let len1 = len lsr 2 in
-  for i = 0 to len1 - 1 do
-    let i = i * 4 in
-    let v = bigstring_get_int32_ne bstr (src_off + i) in
-    Bytes.set_int32_ne dst (dst_off + i) v
-  done;
-  for i = 0 to len0 - 1 do
-    let i = (len1 * 4) + i in
-    let v = bigstring_get_uint8 bstr (src_off + i) in
-    Bytes.set_uint8 dst (dst_off + i) v
-  done
-
-let bigstring_blit_from_string src ~src_off dst ~dst_off ~len =
-  let len0 = len land 3 in
-  let len1 = len lsr 2 in
-  for i = 0 to len1 - 1 do
-    let i = i * 4 in
-    let v = String.get_int32_ne src (src_off + i) in
-    bigstring_set_int32_ne dst (dst_off + i) v
-  done;
-  for i = 0 to len0 - 1 do
-    let i = (len1 * 4) + i in
-    let v = String.get_uint8 src (src_off + i) in
-    bigstring_set_uint8 dst (dst_off + i) v
-  done
-
 (* Unsafe part, C stubs. *)
+
+external bigstring_blit_to_bytes : bigstring -> src_off:(int[@untagged]) ->
+  bytes -> dst_off:(int[@untagged]) -> len:(int[@untagged]) -> unit =
+  "unimplemented" "miou_solo5_bigstring_blit_to_bytes"
+[@@noalloc]
+
+external bigstring_blit_from_string : string -> src_off:(int[@untagged]) ->
+  bigstring -> dst_off:(int[@untagged]) -> len:(int[@untagged]) -> unit =
+  "unimplemented" "miou_solo5_bigstring_blit_from_string"
+[@@noalloc]
 
 external miou_solo5_net_acquire : string -> bytes -> bytes -> bytes -> int
   = "unimplemented" "miou_solo5_net_acquire"
