@@ -282,11 +282,11 @@ module Net : sig
 
   (** {4 Writing to a net device according to the backend.}
 
-      Depending on the backend used (Solo5/hvt or Solo5/virtio),
-      writing to a TAP interface may involve an intermediate "queue" between the
-      unikernel (which fills this queue) and the tender (which consumes this
-      queue). This feature allows for a process on the tender side that attempts
-      to write without interruption (and thus improves performance).
+      Depending on the backend used (Solo5/hvt or Solo5/virtio), writing to a
+      TAP interface may involve an intermediate "queue" between the unikernel
+      (which fills this queue) and the tender (which consumes this queue). This
+      feature allows for a process on the tender side that attempts to write
+      without interruption (and thus improves performance).
 
       In this case, unlike Solo5/hvt, writing is not necessarily effective
       between the unikernel and the TAP interface. However, this effectiveness
