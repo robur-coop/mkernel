@@ -1,3 +1,29 @@
+### v0.0.4 (2026-08-25)
+
+- Provide malloc statistic (@hannesm, @reynir, [!26][26], [!30][30])
+- Introduce `Mkernel.finally` (@reynir, @dinosaure, [!23][23])
+- Rename `Block.pagesize` to `Block.sector_size` (@dinosaure, @hannesm, @reynir, [!24][24])
+- Add stubs for `mirage-mtime` (@hannesm, @dinosaure, [!25][25])
+- Introduce a `Stats` module (@hannesm, @reynir, [!27][27])
+- Introduce `Mkernel.now` (@dinosaure, @hannesm, [!28][28])
+- Rename log source (@hannesm, @reynir, [!29][29])
+- Embed MAC and MTU into the `Net.t` (@hannesm, @dinosaure, [!31][31])
+- Remove unikraft from the documentation (@hannesm, @dinosaure, [!32][32])
+- Use `memcpy` when we copy bigstring (@hannesm, @dinosaure, [#34][34], [!36][36])
+
+[34]: https://git.robur.coop/robur/mkernel/issues/34
+[23]: https://git.robur.coop/robur/mkernel/pulls/23
+[24]: https://git.robur.coop/robur/mkernel/pulls/24
+[25]: https://git.robur.coop/robur/mkernel/pulls/25
+[26]: https://git.robur.coop/robur/mkernel/pulls/26
+[27]: https://git.robur.coop/robur/mkernel/pulls/27
+[28]: https://git.robur.coop/robur/mkernel/pulls/28
+[29]: https://git.robur.coop/robur/mkernel/pulls/29
+[30]: https://git.robur.coop/robur/mkernel/pulls/30
+[31]: https://git.robur.coop/robur/mkernel/pulls/31
+[32]: https://git.robur.coop/robur/mkernel/pulls/32
+[36]: https://git.robur.coop/robur/mkernel/pulls/36
+
 ### v0.0.3 (2026-07-28)
 
 - Clean-up the distribution and remove the unikraft support (@dinosaure, #18)
