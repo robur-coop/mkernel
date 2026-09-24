@@ -107,6 +107,7 @@ external unsafe_get_int64_ne : bytes -> int -> int64 = "%caml_bytes_get64u"
 let invalid_argf fmt = Format.kasprintf invalid_arg fmt
 let failwithf fmt = Format.kasprintf failwith fmt
 let error_msgf fmt = Format.kasprintf (fun msg -> Error (`Msg msg)) fmt
+let inhibit fn v = try fn v with _exn -> ()
 
 module Stats = struct
   type t = {
@@ -728,7 +729,8 @@ let map fn args = Map (args, fn)
 let finally fn arg = Map_finally (arg, fn)
 let const v = Const v
 
-let rec ctor : type a. a arg -> a = function
+let rec ctor : type a. (unit -> unit) list ref -> a arg -> a =
+ fun fs -> function
   | Net device ->
       begin match Net.connect device with
       | Ok t -> t
@@ -740,24 +742,18 @@ let rec ctor : type a. a arg -> a = function
       | Error (`Msg msg) -> failwithf "%s." msg
       end
   | Const v -> v
-  | Map (args, fn) -> go (fun fn -> fn ()) args fn
-  | Map_finally (v, _finally) -> ctor v
+  | Map (args, fn) -> apply fs args fn
+  | Map_finally (arg, finally) ->
+      let value = ctor fs arg in
+      fs := (fun () -> finally value) :: !fs;
+      value
 
-and go : type k res. ((unit -> res) -> res) -> (k, res) devices -> k -> res =
- fun run -> function
-  | [] -> fun fn -> run fn
-  | Map_finally (arg, finally) :: devices ->
-      let v = ctor arg in
-      let finally () = finally v in
-      fun f ->
-        Fun.protect ~finally @@ fun () ->
-        let r = f v in
-        go run devices r
-  | arg :: devices ->
-      let v = ctor arg in
-      fun f ->
-        let r = f v in
-        go run devices r
+and apply : type k res. (unit -> unit) list ref -> (k, res) devices -> k -> res
+    =
+ fun fs devices fn ->
+  match devices with
+  | [] -> fn ()
+  | arg :: devices -> apply fs devices (fn (ctor fs arg))
 
 let trim () =
   let trimmed = miou_solo5_malloc_trim () in
@@ -769,5 +765,6 @@ let run ?now:wclock ?g devices fn =
   let finally () = Gc.delete_alarm alarm in
   Fun.protect ~finally @@ fun () ->
   Miou.run ~events ~domains:0 ?g @@ fun () ->
-  let run fn = fn () in
-  go run devices fn
+  let fs = ref List.[] in
+  let finally () = List.iter (fun fn -> inhibit fn ()) !fs in
+  Fun.protect ~finally @@ fun () -> apply fs devices fn
