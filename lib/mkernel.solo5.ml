@@ -437,7 +437,7 @@ module Net = struct
       let rec go dst_off dst_len =
         if dst_len > 0 then begin
           let len = Int.min (Bigarray.Array1.dim bstr) dst_len in
-          let result = miou_solo5_net_read t.handle bstr off len read_size in
+          let result = miou_solo5_net_read t.handle bstr 0 len read_size in
           match result with
           | 0 ->
               let len = Int64.to_int (unsafe_get_int64_ne read_size 0) in
