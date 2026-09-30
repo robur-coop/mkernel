@@ -1,3 +1,11 @@
+### v0.0.5 (2026-09-30)
+
+- Fix how we handle `finally` functions for devices (@dinosaure, [!41][41])
+- Fix `Mkernel.Net.read_bytes` (@dinosaure, @hannesm, [!42][42])
+
+[41]: https://git.robur.coop/robur/mkernel/pulls/41
+[42]: https://git.robur.coop/robur/mkernel/pulls/42
+
 ### v0.0.4 (2026-08-25)
 
 - Provide malloc statistic (@hannesm, @reynir, [!26][26], [!30][30])
