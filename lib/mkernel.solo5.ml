@@ -126,7 +126,10 @@ module Stats = struct
   let empty = { rx_ops= 0; rx_bytes= 0; tx_ops= 0; tx_bytes= 0 }
   let _dummy = ("", "invalid", empty)
   let _stats = Array.make 64 _dummy
-  let add handle typ name = Array.set _stats handle (name, typ, empty)
+
+  let add handle typ name =
+    let stat = { rx_bytes= 0; rx_ops= 0; tx_ops= 0; tx_bytes= 0 } in
+    Array.set _stats handle (name, typ, stat)
 
   let rx handle len =
     let _, _, stat = Array.get _stats handle in
