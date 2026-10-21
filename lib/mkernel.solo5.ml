@@ -180,10 +180,13 @@ module Block_direct = struct
     match miou_solo5_block_acquire name handle len sector_size with
     | 0 ->
         let handle = Int64.to_int (Bytes.get_int64_ne handle 0) in
-        let len = Int64.to_int (Bytes.get_int64_ne len 0) in
-        let sector_size = Int64.to_int (Bytes.get_int64_ne sector_size 0) in
-        Stats.add handle "block" name;
-        Ok { handle; sector_size; len }
+        if handle < 0 || handle >= 63 then
+          error_msgf "Received handle %u, which doesn't fit into [0..62]" handle
+        else
+          let len = Int64.to_int (Bytes.get_int64_ne len 0) in
+          let sector_size = Int64.to_int (Bytes.get_int64_ne sector_size 0) in
+          Stats.add handle "block" name;
+          Ok { handle; sector_size; len }
     | errno ->
         error_msgf "Impossible to connect the block-device %s (%d)" name errno
 
@@ -401,9 +404,12 @@ module Net = struct
     | 0 ->
         let mac = Bytes.unsafe_to_string mac in
         let handle = Int64.to_int (Bytes.get_int64_ne handle 0) in
-        let mtu = Int64.to_int (Bytes.get_int64_ne mtu 0) in
-        Stats.add handle "net" name;
-        Ok { handle; mac; mtu }
+        if handle < 0 || handle >= 63 then
+          error_msgf "Received handle %u, which doesn't fit into [0..62]" handle
+        else
+          let mtu = Int64.to_int (Bytes.get_int64_ne mtu 0) in
+          Stats.add handle "net" name;
+          Ok { handle; mac; mtu }
     | _ -> error_msgf "Impossible to connect the net-device %s" name
 
   let read t ~off ~len bstr =
