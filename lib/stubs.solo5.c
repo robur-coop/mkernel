@@ -1,11 +1,11 @@
 #include "solo5.h"
 
+#include <caml/alloc.h>
 #include <caml/bigarray.h>
 #include <caml/callback.h>
 #include <caml/memory.h>
-#include <string.h>
 #include <caml/mlvalues.h>
-#include <caml/alloc.h>
+#include <string.h>
 
 /* We currently have no need for these functions. They consist of releasing the
  * GC lock when we do operations with Solo5 with bigstrings, because of the
@@ -16,15 +16,18 @@
 extern void caml_enter_blocking_section(void);
 extern void caml_leave_blocking_section(void);
 
-value miou_solo5_bigstring_blit_to_bytes (value src, intnat src_off, value dst,
-                                          intnat dst_off, intnat len) {
-  memcpy(Bytes_val(dst) + dst_off, (char*)Caml_ba_data_val(src) + src_off, len);
+value miou_solo5_bigstring_blit_to_bytes(value src, intnat src_off, value dst,
+                                         intnat dst_off, intnat len) {
+  memcpy(Bytes_val(dst) + dst_off, (char *)Caml_ba_data_val(src) + src_off,
+         len);
   return Val_unit;
 }
 
-value miou_solo5_bigstring_blit_from_string (value src, intnat src_off, value dst,
-                                             intnat dst_off, intnat len) {
-  memcpy((char*)Caml_ba_data_val(dst) + dst_off, String_val(src) + src_off, len);
+value miou_solo5_bigstring_blit_from_string(value src, intnat src_off,
+                                            value dst, intnat dst_off,
+                                            intnat len) {
+  memcpy((char *)Caml_ba_data_val(dst) + dst_off, String_val(src) + src_off,
+         len);
   return Val_unit;
 }
 
@@ -48,7 +51,8 @@ value miou_solo5_block_acquire(value vname, value vhandle, value vlen,
   if (result == SOLO5_R_OK) {
     memcpy(Bytes_val(vhandle), (uint64_t *)&handle, sizeof(uint64_t));
     memcpy(Bytes_val(vlen), (uint64_t *)&bi.capacity, sizeof(uint64_t));
-    memcpy(Bytes_val(vsector_size), (uint64_t *)&bi.block_size, sizeof(uint64_t));
+    memcpy(Bytes_val(vsector_size), (uint64_t *)&bi.block_size,
+           sizeof(uint64_t));
   }
 
   CAMLreturn(Val_long(result));
@@ -147,9 +151,7 @@ intnat miou_solo5_clock_monotonic(__unit()) {
   return (solo5_clock_monotonic());
 }
 
-CAMLprim value
-caml_get_monotonic_time(value v_unit)
-{
+CAMLprim value caml_get_monotonic_time(value v_unit) {
   CAMLparam1(v_unit);
   CAMLreturn(caml_copy_int64(solo5_clock_monotonic()));
 }
@@ -211,30 +213,26 @@ int solo5_app_main(const struct solo5_start_info *si) {
   return (0);
 }
 
-intnat miou_solo5_get_heap_words(value v_unit)
-{
-    return heap_size / sizeof(value);
+intnat miou_solo5_get_heap_words(value v_unit) {
+  return heap_size / sizeof(value);
 }
 
 extern size_t malloc_memory_usage(void);
 
-intnat miou_solo5_get_live_words(value v_unit)
-{
-    struct mallinfo m = mallinfo();
-    return m.uordblks / sizeof(value);
+intnat miou_solo5_get_live_words(value v_unit) {
+  struct mallinfo m = mallinfo();
+  return m.uordblks / sizeof(value);
 }
 
-intnat miou_solo5_get_fast_live_words(value v_unit)
-{
-    return malloc_memory_usage() / sizeof(value);
+intnat miou_solo5_get_fast_live_words(value v_unit) {
+  return malloc_memory_usage() / sizeof(value);
 }
 
-intnat miou_solo5_get_stack_words(value v_unit)
-{
-    // 0x100000 is a bit magical, related to
-    // https://github.com/Solo5/solo5/blob/469c1a8d935b503fa553aef152d1d57d095fa3a4/include/hvt_abi.h#L46-L49
-    // #define HVT_GUEST_MIN_BASE 0x100000
-    // which is not exported in solo5.h.
-    int dummy;
-    return (sp_at_start - (uintptr_t)&dummy + 0x100000) / sizeof(value);
+intnat miou_solo5_get_stack_words(value v_unit) {
+  // 0x100000 is a bit magical, related to
+  // https://github.com/Solo5/solo5/blob/469c1a8d935b503fa553aef152d1d57d095fa3a4/include/hvt_abi.h#L46-L49
+  // #define HVT_GUEST_MIN_BASE 0x100000
+  // which is not exported in solo5.h.
+  int dummy;
+  return (sp_at_start - (uintptr_t)&dummy + 0x100000) / sizeof(value);
 }
