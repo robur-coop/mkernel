@@ -80,9 +80,13 @@ intnat miou_solo5_block_write(intnat fd, intnat src_off, intnat dst_off,
   return result;
 }
 
+#ifndef SOLO5_NET_OFFLOAD_TX_CSUM
+#error "mkernel requires a Solo5 with net offloads"
+#endif
+
 value miou_solo5_net_acquire(value vname, value vhandle, value vmac,
-                             value vmtu) {
-  CAMLparam3(vname, vmac, vmtu);
+                             value vinfo) {
+  CAMLparam4(vname, vhandle, vmac, vinfo);
   solo5_result_t result;
   solo5_handle_t handle;
   struct solo5_net_info ni;
@@ -90,9 +94,15 @@ value miou_solo5_net_acquire(value vname, value vhandle, value vmac,
   result = solo5_net_acquire(String_val(vname), &handle, &ni);
 
   if (result == SOLO5_R_OK) {
+    uint64_t mtu = ni.mtu;
+    uint64_t offloads = ni.offloads;
+    uint64_t max_frame = ni.max_frame;
+
     memcpy(Bytes_val(vhandle), (uint64_t *)&handle, sizeof(uint64_t));
     memcpy(Bytes_val(vmac), ni.mac_address, SOLO5_NET_ALEN);
-    memcpy(Bytes_val(vmtu), (uint64_t *)&ni.mtu, sizeof(uint64_t));
+    memcpy(Bytes_val(vinfo) + 0, &mtu, sizeof(uint64_t));
+    memcpy(Bytes_val(vinfo) + 8, &offloads, sizeof(uint64_t));
+    memcpy(Bytes_val(vinfo) + 16, &max_frame, sizeof(uint64_t));
   }
 
   CAMLreturn(Val_long(result));

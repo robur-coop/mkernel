@@ -390,26 +390,72 @@ let blocking_read fd =
   Miou.suspend ~fn syscall
 
 module Net = struct
+  module Offload = struct
+    type t = int
+
+    let tx_csum = 1 lsl 0
+    let tx_tso4 = 1 lsl 1
+    let tx_tso6 = 1 lsl 2
+    let tx_uso = 1 lsl 3
+    let rx_csum = 1 lsl 4
+    let rx_gro = 1 lsl 5
+    let known = 0x3f
+    let none = 0
+    let mem bit t = t land bit <> 0
+    let unknown t = t land lnot known
+
+    let pp ppf t =
+      let names =
+        [
+          (tx_csum, "tx-csum"); (tx_tso4, "tx-tso4"); (tx_tso6, "tx-tso6")
+        ; (tx_uso, "tx-uso"); (rx_csum, "rx-csum"); (rx_gro, "rx-gro")
+        ]
+      in
+      let set =
+        List.filter_map (fun (b, n) -> if mem b t then Some n else None) names
+      in
+      let str = match set with [] -> "none" | lst -> String.concat "," lst in
+      Format.pp_print_string ppf str
+  end
+
   type mac = string
-  type t = { handle: int; mac: mac; mtu: int }
+
+  type t = {
+      handle: int
+    ; mac: mac
+    ; mtu: int
+    ; offloads: int
+    ; max_frame: int
+    ; rx: bigstring
+    ; tx: bigstring
+  }
 
   let mac { mac; _ } = mac
   let mtu { mtu; _ } = mtu
+  let offloads { offloads; _ } = offloads
+  let max_frame { max_frame; _ } = max_frame
 
   let connect name =
     let handle = Bytes.make 8 '\000' in
     let mac = Bytes.make 6 '\000' in
-    let mtu = Bytes.make 8 '\000' in
-    match miou_solo5_net_acquire name handle mac mtu with
+    let info = Bytes.make 24 '\000' in
+    match miou_solo5_net_acquire name handle mac info with
     | 0 ->
         let mac = Bytes.unsafe_to_string mac in
         let handle = Int64.to_int (Bytes.get_int64_ne handle 0) in
+        let mtu = Int64.to_int (Bytes.get_int64_ne info 0) in
+        let offloads = Int64.to_int (Bytes.get_int64_ne info 8) in
+        let max_frame = Int64.to_int (Bytes.get_int64_ne info 16) in
         if handle < 0 || handle >= 63 then
           error_msgf "Received handle %u, which doesn't fit into [0..62]" handle
-        else
-          let mtu = Int64.to_int (Bytes.get_int64_ne mtu 0) in
+        else if max_frame < mtu + 14 then
+          error_msgf "Invalid max_frame %d for an MTU of %d" max_frame mtu
+        else begin
           Stats.add handle "net" name;
-          Ok { handle; mac; mtu }
+          let rx = Bigarray.(Array1.create char c_layout max_frame) in
+          let tx = Bigarray.(Array1.create char c_layout max_frame) in
+          Ok { handle; mac; mtu; offloads; max_frame; rx; tx }
+        end
     | _ -> error_msgf "Impossible to connect the net-device %s" name
 
   let read t ~off ~len bstr =
@@ -420,7 +466,7 @@ module Net = struct
           let len = Int64.to_int (unsafe_get_int64_ne read_size 0) in
           Stats.rx t len; len
       | 1 -> blocking_read t; go read_size
-      | 2 -> invalid_arg "Mkernel.Net.read"
+      | 2 -> invalid_arg "Mkernel.Net.read: invalid handle"
       | _ -> assert false (* UNSPEC *)
     in
     go (Bytes.make 8 '\000')
@@ -433,45 +479,25 @@ module Net = struct
       invalid_arg "Mkernel.Net.read_bigstring: out of bounds";
     read t.handle ~off ~len bstr
 
-  let read_bytes =
-    (* NOTE(dinosaure): Using [bstr] as a global is safe for 2 reasons. We
-       don't have several domains with Solo5, so there can't be a data-race on
-       this value. Secondly, we ensure that as soon as Solo5 writes to it, we
-       save the bytes in the buffer given by the user without giving the
-       scheduler a chance to execute another task (such as another
-       [read_bytes]). *)
-    let bstr = Bigarray.(Array1.create char c_layout 0x7ff) in
-    fun t ?(off = 0) ?len buf ->
-      let read_size = Bytes.make 8 '\000' in
-      let rec go dst_off dst_len =
-        if dst_len > 0 then begin
-          let len = Int.min (Bigarray.Array1.dim bstr) dst_len in
-          let result = miou_solo5_net_read t.handle bstr 0 len read_size in
-          match result with
-          | 0 ->
-              let len = Int64.to_int (unsafe_get_int64_ne read_size 0) in
-              Stats.rx t.handle len;
-              bigstring_blit_to_bytes bstr ~src_off:0 buf ~dst_off ~len;
-              if len > 0 then go (dst_off + len) (dst_len - len)
-              else dst_off - off
-          | 1 -> blocking_read t.handle; go dst_off dst_len
-          | 2 -> invalid_arg "Mkernel.Net.read"
-          | _ -> assert false (* UNSPEC *)
-        end
-        else dst_off - off
-      in
-      let len =
-        match len with Some len -> len | None -> Bytes.length buf - off
-      in
-      if len < 0 || off < 0 || off > Bytes.length buf - len then
-        invalid_arg "Mkernel.Net.read_bytes: out of bounds";
-      go off len
+  let read_bytes t ?(off = 0) ?len buf =
+    let len =
+      match len with Some len -> len | None -> Bytes.length buf - off
+    in
+    if len < 0 || off < 0 || off > Bytes.length buf - len then
+      invalid_arg "Mkernel.Net.read_bytes: out of bounds";
+    let n = read t.handle ~off:0 ~len:t.max_frame t.rx in
+    if n > len then
+      invalid_arg "Mkernel.Net.read_bytes: frame larger than the given buffer";
+    bigstring_blit_to_bytes t.rx ~src_off:0 buf ~dst_off:off ~len:n;
+    n
 
   let rec write t ~off ~len bstr =
     match miou_solo5_net_write t.handle off len bstr with
     | 0 -> Stats.tx t.handle len
     | 1 -> write t ~off ~len bstr
-    | 2 -> invalid_arg "Mkernel.Net.write"
+    | 2 ->
+        invalid_arg
+          "Mkernel.Net.write: invalid handle or frame larget than max_frame"
     | _ -> assert false
   (* UNSPEC *)
   (* NOTE(dinosaure): we recall [write] when we receive [1]/[SOLO5_R_AGAIN]
@@ -499,24 +525,16 @@ module Net = struct
     let len = fn bstr in
     write_bigstring t ~len bstr
 
-  let write_string =
-    let bstr = Bigarray.(Array1.create char c_layout 0x7ff) in
-    fun t ?(off = 0) ?len str ->
-      let rec go src_off src_len =
-        if src_len > 0 then begin
-          let len = Int.min (Bigarray.Array1.dim bstr) src_len in
-          bigstring_blit_from_string str ~src_off bstr ~dst_off:0 ~len;
-          write_bigstring t ~off:0 ~len bstr;
-          Miou.yield ();
-          go (src_off + len) (src_len - len)
-        end
-      in
-      let len =
-        match len with Some len -> len | None -> String.length str - off
-      in
-      if len < 0 || off < 0 || off > String.length str - len then
-        invalid_arg "Mkernel.Net.write_string: out of bounds";
-      go off len
+  let write_string t ?(off = 0) ?len str =
+    let len =
+      match len with Some len -> len | None -> String.length str - off
+    in
+    if len < 0 || off < 0 || off > String.length str - len then
+      invalid_arg "Mkernel.Net.write_string: out of bounds";
+    if len > t.max_frame then
+      invalid_arg "Mkernel.write_string: frame larger than max_frame";
+    bigstring_blit_from_string str ~src_off:off t.tx ~dst_off:0 ~len;
+    write_bigstring t ~off:0 ~len t.tx
 end
 
 module Block = struct

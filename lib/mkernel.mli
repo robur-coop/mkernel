@@ -242,6 +242,21 @@ module Stats : sig
 end
 
 module Net : sig
+  module Offload : sig
+    type t
+
+    val tx_csum : t
+    val tx_tso4 : t
+    val tx_tso6 : t
+    val tx_uso : t
+    val rx_csum : t
+    val rx_gro : t
+    val none : t
+    val unknown : t -> int
+    val mem : t -> t -> bool
+    val pp : Format.formatter -> t -> unit
+  end
+
   type t
   (** The type of network interfaces. *)
 
@@ -253,6 +268,9 @@ module Net : sig
 
   val mtu : t -> int
   (** The maximum transfer unit (MTU) of this network interface. *)
+
+  val offloads : t -> Offload.t
+  val max_frame : t -> int
 
   val read_bigstring : t -> ?off:int -> ?len:int -> bigstring -> int
   (** [read_bigstring t ?off ?len bstr] reads [len] (defaults to

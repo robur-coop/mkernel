@@ -45,11 +45,28 @@ let t =
   |> Object.finish
 
 module Net = struct
+  module Offload = struct
+    type t = int
+
+    let tx_csum = 0
+    let tx_tso4 = 0
+    let tx_tso6 = 0
+    let tx_uso = 0
+    let rx_csum = 0
+    let rx_gro = 0
+    let none = 0
+    let unknown _ = assert false
+    let mem _ _ = assert false
+    let pp _ _ = assert false
+  end
+
   type t = int
   type mac = string
 
   let mac _t = assert false
   let mtu _t = assert false
+  let offloads _t = assert false
+  let max_frame _t = assert false
   let connect _name = assert false
   let read_bigstring _t ?off:_ ?len:_ _bstr = assert false
   let read_bytes _t ?off:_ ?len:_ _buf = assert false
