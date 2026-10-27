@@ -4,7 +4,7 @@ homepage:     "https://git.robur.coop/robur/mkernel"
 bug-reports:  "https://git.robur.coop/robur/mkernel/issues"
 dev-repo:     "git+https://github.com/robur-coop/mkernel.git"
 doc:          "https://git.robur.coop/robur/mkernel"
-license:      "MIT"
+license:      "AGPL-3.0-or-later"
 authors:      [ "Romain Calascibetta <romain.calascibetta@gmail.com>" ]
 build:        [
   [ "dune" "subst" ] {dev}
