@@ -293,15 +293,15 @@ module Msleepers = struct
         collect t (Miou.signal syscall :: signals)
     | _ -> signals
 
-  let clean t uids =
-    let to_delete syscall =
-      let uid = Miou.uid syscall in
-      List.exists (fun uid' -> uid = uid') uids
+  let clean (rsleepers : (Miou.uid, monotonic) Hashtbl.t) uids =
+    let fn uid =
+      match Hashtbl.find_opt rsleepers uid with
+      | Some elt ->
+          elt.cancelled <- true;
+          Hashtbl.remove rsleepers uid
+      | None -> ()
     in
-    let fn (({ syscall; _ } : monotonic) as elt) =
-      if to_delete syscall then elt.cancelled <- true
-    in
-    iter fn t
+    List.iter fn uids
 end
 
 module Wsleepers = struct
@@ -336,12 +336,15 @@ module Wsleepers = struct
   let collect ~now t signals =
     if is_empty t then signals else collect ~now:(now ()) t signals
 
-  let clean t uids =
-    let to_delete uid = List.exists (fun uid' -> uid = uid') uids in
-    let fn (({ syscall; _ } : wall) as elt) =
-      if to_delete (Miou.uid syscall) then elt.cancelled <- true
+  let clean (rsleepers : (Miou.uid, wall) Hashtbl.t) uids =
+    let fn uid =
+      match Hashtbl.find_opt rsleepers uid with
+      | Some elt ->
+          elt.cancelled <- true;
+          Hashtbl.remove rsleepers uid
+      | None -> ()
     in
-    iter fn t
+    List.iter fn uids
 end
 
 type action = Rd of arguments | Wr of arguments
@@ -359,6 +362,8 @@ type domain = {
     handles: Miou.syscall list Handles.t
   ; wsleepers: Wsleepers.t
   ; msleepers: Msleepers.t
+  ; wrsleepers: (Miou.uid, wall) Hashtbl.t
+  ; mrsleepers: (Miou.uid, monotonic) Hashtbl.t
   ; blocks: action Queue.t
   ; mutable now: unit -> Ptime.t
 }
@@ -380,6 +385,8 @@ let domain =
     handles= Handles.create 0x100
   ; wsleepers= Wsleepers.create ()
   ; msleepers= Msleepers.create ()
+  ; wrsleepers= Hashtbl.create 0x100
+  ; mrsleepers= Hashtbl.create 0x100
   ; blocks= Queue.create ()
   ; now
   }
@@ -559,12 +566,14 @@ end
 let sleep until =
   let syscall = Miou.syscall () in
   let elt = { time= clock_monotonic () + until; syscall; cancelled= false } in
+  Hashtbl.replace domain.mrsleepers (Miou.uid syscall) elt;
   Msleepers.insert elt domain.msleepers;
   Miou.suspend syscall
 
 let wakeup ~at:date =
   let syscall = Miou.syscall () in
   let elt = { date; syscall; cancelled= false } in
+  Hashtbl.replace domain.wrsleepers (Miou.uid syscall) elt;
   Wsleepers.insert elt domain.wsleepers;
   Miou.suspend syscall
 
@@ -622,8 +631,8 @@ let clean domain uids =
   in
   Handles.filter_map fn0 domain.handles;
   Queue.iter fn1 domain.blocks;
-  Wsleepers.clean domain.wsleepers uids;
-  Msleepers.clean domain.msleepers uids
+  Wsleepers.clean domain.wrsleepers uids;
+  Msleepers.clean domain.mrsleepers uids
 
 external miou_solo5_yield : (int[@untagged]) -> (int[@untagged])
   = "unimplemented" "miou_solo5_yield"
